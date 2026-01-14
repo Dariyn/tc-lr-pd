@@ -11,7 +11,7 @@ None
 ## Phases
 
 - [x] **Phase 1: Data Pipeline Foundation** - Set up data ingestion, validation, and cleaning (completed 2026-01-14)
-- [ ] **Phase 2: Equipment Category Analysis** - Identify high-maintenance equipment within categories
+- [~] **Phase 2: Equipment Category Analysis** - Identify high-maintenance equipment within categories (in progress)
 - [ ] **Phase 3: Cost Pattern Analysis** - Analyze seasonal trends, vendor costs, and part failures
 - [ ] **Phase 4: Reporting Engine** - Generate PDF/Excel reports with findings and recommendations
 - [ ] **Phase 5: Data Export & Visualization** - Create ranked exports and interactive charts
@@ -35,12 +35,11 @@ Plans:
 **Goal**: Implement statistical analysis to identify equipment with abnormally high adhoc repair frequencies within their category/type
 **Depends on**: Phase 1
 **Research**: Unlikely (statistical analysis using established patterns)
-**Plans**: 3 plans
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: Equipment grouping and frequency calculation
-- [ ] 02-02: Statistical outlier detection within categories
-- [ ] 02-03: Ranking and threshold identification
+- [x] 02-01: Equipment frequency calculation and category baselines (completed 2026-01-14)
+- [ ] 02-02: Statistical outlier detection and ranking
 
 ### Phase 3: Cost Pattern Analysis
 **Goal**: Analyze multiple cost dimensions including seasonal trends, vendor performance, and part failure patterns
@@ -93,7 +92,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Data Pipeline Foundation | 4/4 | Complete | 2026-01-14 |
-| 2. Equipment Category Analysis | 0/3 | Not started | - |
+| 2. Equipment Category Analysis | 1/2 | In progress | - |
 | 3. Cost Pattern Analysis | 0/3 | Not started | - |
 | 4. Reporting Engine | 0/3 | Not started | - |
 | 5. Data Export & Visualization | 0/3 | Not started | - |
