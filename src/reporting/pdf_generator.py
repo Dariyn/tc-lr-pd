@@ -281,11 +281,18 @@ class PDFReportGenerator:
 
             self.pdf.set_font('Arial', '', 10)
             for rec in section.recommendations:
+                # Calculate available width for bullet text
+                left_margin = self.pdf.l_margin
+                right_margin = self.pdf.r_margin
+                page_width = self.pdf.w
+                bullet_indent = 7
+                text_width = page_width - left_margin - right_margin - bullet_indent
+
                 x_pos = self.pdf.get_x()
                 y_pos = self.pdf.get_y()
                 self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
-                self.pdf.set_xy(x_pos + 7, y_pos)
-                self.pdf.multi_cell(0, 6, rec)
+                self.pdf.set_x(left_margin + bullet_indent)
+                self.pdf.multi_cell(text_width, 6, str(rec) if rec else '')
 
     def _add_seasonal_section(self, section: ReportSection) -> None:
         """
@@ -341,11 +348,18 @@ class PDFReportGenerator:
                 self.pdf.set_font('Arial', '', 10)
                 for pattern in content['patterns']:
                     pattern_text = pattern.get('pattern', 'Unknown pattern')
+                    # Calculate available width for bullet text
+                    left_margin = self.pdf.l_margin
+                    right_margin = self.pdf.r_margin
+                    page_width = self.pdf.w
+                    bullet_indent = 7
+                    text_width = page_width - left_margin - right_margin - bullet_indent
+
                     x_pos = self.pdf.get_x()
                     y_pos = self.pdf.get_y()
                     self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
-                    self.pdf.set_xy(x_pos + 7, y_pos)
-                    self.pdf.multi_cell(0, 6, pattern_text)
+                    self.pdf.set_x(left_margin + bullet_indent)
+                    self.pdf.multi_cell(text_width, 6, pattern_text)
 
         # Recommendations
         if section.recommendations:
@@ -356,11 +370,18 @@ class PDFReportGenerator:
 
             self.pdf.set_font('Arial', '', 10)
             for rec in section.recommendations:
+                # Calculate available width for bullet text
+                left_margin = self.pdf.l_margin
+                right_margin = self.pdf.r_margin
+                page_width = self.pdf.w
+                bullet_indent = 7
+                text_width = page_width - left_margin - right_margin - bullet_indent
+
                 x_pos = self.pdf.get_x()
                 y_pos = self.pdf.get_y()
                 self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
-                self.pdf.set_xy(x_pos + 7, y_pos)
-                self.pdf.multi_cell(0, 6, rec)
+                self.pdf.set_x(left_margin + bullet_indent)
+                self.pdf.multi_cell(text_width, 6, str(rec) if rec else '')
 
     def _add_vendor_section(self, section: ReportSection) -> None:
         """
@@ -454,11 +475,18 @@ class PDFReportGenerator:
 
             self.pdf.set_font('Arial', '', 10)
             for rec in section.recommendations:
+                # Calculate available width for bullet text
+                left_margin = self.pdf.l_margin
+                right_margin = self.pdf.r_margin
+                page_width = self.pdf.w
+                bullet_indent = 7
+                text_width = page_width - left_margin - right_margin - bullet_indent
+
                 x_pos = self.pdf.get_x()
                 y_pos = self.pdf.get_y()
                 self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
-                self.pdf.set_xy(x_pos + 7, y_pos)
-                self.pdf.multi_cell(0, 6, rec)
+                self.pdf.set_x(left_margin + bullet_indent)
+                self.pdf.multi_cell(text_width, 6, str(rec) if rec else '')
 
     def _add_failure_section(self, section: ReportSection) -> None:
         """
@@ -552,11 +580,18 @@ class PDFReportGenerator:
 
             self.pdf.set_font('Arial', '', 10)
             for rec in section.recommendations:
+                # Calculate available width for bullet text
+                left_margin = self.pdf.l_margin
+                right_margin = self.pdf.r_margin
+                page_width = self.pdf.w
+                bullet_indent = 7
+                text_width = page_width - left_margin - right_margin - bullet_indent
+
                 x_pos = self.pdf.get_x()
                 y_pos = self.pdf.get_y()
                 self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
-                self.pdf.set_xy(x_pos + 7, y_pos)
-                self.pdf.multi_cell(0, 6, rec)
+                self.pdf.set_x(left_margin + bullet_indent)
+                self.pdf.multi_cell(text_width, 6, str(rec) if rec else '')
 
     def _add_section(self, section: ReportSection) -> None:
         """
@@ -608,12 +643,18 @@ class PDFReportGenerator:
 
             self.pdf.set_font('Arial', '', 10)
             for rec in section.recommendations:
-                # Bullet point
+                # Calculate available width for bullet text
+                left_margin = self.pdf.l_margin
+                right_margin = self.pdf.r_margin
+                page_width = self.pdf.w
+                bullet_indent = 7
+                text_width = page_width - left_margin - right_margin - bullet_indent
+
                 x_pos = self.pdf.get_x()
                 y_pos = self.pdf.get_y()
                 self.pdf.cell(5, 6, chr(149), 0, 0, 'L')  # Bullet character
-                self.pdf.set_xy(x_pos + 7, y_pos)
-                self.pdf.multi_cell(0, 6, rec)
+                self.pdf.set_x(left_margin + bullet_indent)
+                self.pdf.multi_cell(text_width, 6, str(rec) if rec else '')
 
     def _format_table(self, df: pd.DataFrame, max_rows: int = 20) -> None:
         """
@@ -705,11 +746,18 @@ class PDFReportGenerator:
                 # Recommendations
                 self.pdf.set_font('Arial', '', 10)
                 for rec in section.recommendations:
+                    # Calculate available width for bullet text
+                    left_margin = self.pdf.l_margin
+                    right_margin = self.pdf.r_margin
+                    page_width = self.pdf.w
+                    bullet_indent = 7
+                    text_width = page_width - left_margin - right_margin - bullet_indent
+
                     x_pos = self.pdf.get_x()
                     y_pos = self.pdf.get_y()
                     self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
-                    self.pdf.set_xy(x_pos + 7, y_pos)
-                    self.pdf.multi_cell(0, 6, rec)
+                    self.pdf.set_x(left_margin + bullet_indent)
+                    self.pdf.multi_cell(text_width, 6, str(rec) if rec else '')
 
                 self.pdf.ln(3)
 
