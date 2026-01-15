@@ -588,11 +588,11 @@ class ReportBuilder:
         # Initialize report
         report = Report(metadata=metadata)
 
-        # TODO: Add analysis sections in Task 2
-        # - add_equipment_analysis()
-        # - add_seasonal_analysis()
-        # - add_vendor_analysis()
-        # - add_failure_analysis()
+        # Add all analysis sections
+        report.sections.append(self.add_equipment_analysis())
+        report.sections.append(self.add_seasonal_analysis())
+        report.sections.append(self.add_vendor_analysis())
+        report.sections.append(self.add_failure_analysis())
 
         # Build executive summary
         report.executive_summary = self._build_executive_summary(report.sections)
