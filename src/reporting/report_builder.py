@@ -202,12 +202,12 @@ class ReportBuilder:
             raise ValueError("Data not loaded. Call _load_data() first.")
 
         # Import analysis modules
-        from src.analysis.frequency_analyzer import calculate_equipment_frequency
+        from src.analysis.frequency_analyzer import calculate_equipment_frequencies
         from src.analysis.outlier_detector import detect_outliers
         from src.analysis.equipment_ranker import rank_equipment, identify_thresholds
 
         # Run frequency analysis
-        freq_df = calculate_equipment_frequency(self.df)
+        freq_df = calculate_equipment_frequencies(self.df)
 
         # Run outlier detection
         outlier_df = detect_outliers(freq_df)
