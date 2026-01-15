@@ -357,3 +357,220 @@ class FailurePatternAnalyzer:
                     return category
 
         return 'other'
+
+    def calculate_pattern_costs(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculate total and average costs for each identified pattern.
+
+        Finds all patterns in the data and aggregates cost information.
+
+        Args:
+            df: DataFrame with work order data including text fields and costs
+
+        Returns:
+            DataFrame with columns: pattern, occurrences, total_cost, avg_cost,
+                                   category, equipment_affected, example_wo_numbers
+        """
+        # Get all recurring patterns
+        patterns_df = self.identify_recurring_issues(df, by_equipment=False)
+
+        if len(patterns_df) == 0:
+            logger.warning("No patterns found for cost calculation")
+            return pd.DataFrame(columns=['pattern', 'occurrences', 'total_cost',
+                                        'avg_cost', 'category', 'equipment_affected',
+                                        'example_wo_numbers'])
+
+        # Text fields to analyze
+        text_fields = ['Problem', 'Cause', 'Remedy', 'description']
+        available_fields = [f for f in text_fields if f in df.columns]
+
+        results = []
+
+        for _, pattern_row in patterns_df.iterrows():
+            pattern = pattern_row['pattern']
+
+            # Find all work orders containing this pattern
+            mask = pd.Series([False] * len(df), index=df.index)
+            for field in available_fields:
+                if field in df.columns:
+                    field_mask = df[field].astype(str).str.lower().str.contains(
+                        pattern, na=False, regex=False
+                    )
+                    mask = mask | field_mask
+
+            pattern_wos = df[mask]
+
+            # Calculate costs
+            if 'PO_AMOUNT' in df.columns:
+                valid_costs = pattern_wos[pattern_wos['PO_AMOUNT'] > 0]['PO_AMOUNT']
+                total_cost = valid_costs.sum()
+                avg_cost = valid_costs.mean() if len(valid_costs) > 0 else 0
+            else:
+                total_cost = 0
+                avg_cost = 0
+
+            # Count equipment affected
+            if 'Equipment_ID' in df.columns:
+                equipment_affected = pattern_wos['Equipment_ID'].nunique()
+            else:
+                equipment_affected = 0
+
+            # Get example work order numbers
+            if 'wo_no' in df.columns:
+                example_wo_numbers = pattern_wos['wo_no'].head(3).tolist()
+            else:
+                example_wo_numbers = []
+
+            results.append({
+                'pattern': pattern,
+                'occurrences': len(pattern_wos),
+                'total_cost': total_cost,
+                'avg_cost': avg_cost,
+                'category': pattern_row['category'],
+                'equipment_affected': equipment_affected,
+                'example_wo_numbers': ', '.join(str(wo) for wo in example_wo_numbers)
+            })
+
+        result_df = pd.DataFrame(results).sort_values('total_cost', ascending=False)
+        logger.info(f"Calculated costs for {len(result_df)} patterns")
+
+        return result_df
+
+    def find_high_impact_patterns(self, df: pd.DataFrame,
+                                  min_occurrences: int = 5) -> pd.DataFrame:
+        """
+        Find patterns that occur frequently with high costs.
+
+        High-impact patterns are those with:
+        - Frequency >= min_occurrences (recurring issue)
+        - Average cost above median (expensive to fix)
+        - Affecting multiple equipment items (not isolated)
+
+        Args:
+            df: DataFrame with work order data
+            min_occurrences: Minimum occurrences to be considered recurring (default: 5)
+
+        Returns:
+            DataFrame with high-impact patterns sorted by impact score
+        """
+        # Get pattern costs
+        pattern_costs = self.calculate_pattern_costs(df)
+
+        if len(pattern_costs) == 0:
+            logger.warning("No patterns found for high-impact analysis")
+            return pd.DataFrame(columns=['pattern', 'occurrences', 'total_cost',
+                                        'avg_cost', 'category', 'equipment_affected',
+                                        'impact_score', 'example_wo_numbers'])
+
+        # Filter by minimum occurrences
+        recurring = pattern_costs[pattern_costs['occurrences'] >= min_occurrences]
+
+        if len(recurring) == 0:
+            logger.warning(f"No patterns with >= {min_occurrences} occurrences")
+            return pd.DataFrame(columns=['pattern', 'occurrences', 'total_cost',
+                                        'avg_cost', 'category', 'equipment_affected',
+                                        'impact_score', 'example_wo_numbers'])
+
+        # Calculate median average cost
+        median_avg_cost = recurring['avg_cost'].median()
+
+        # Filter for above-median cost
+        high_cost = recurring[recurring['avg_cost'] > median_avg_cost]
+
+        if len(high_cost) == 0:
+            logger.info("No patterns with above-median costs found")
+            return pd.DataFrame(columns=['pattern', 'occurrences', 'total_cost',
+                                        'avg_cost', 'category', 'equipment_affected',
+                                        'impact_score', 'example_wo_numbers'])
+
+        # Calculate impact score: (frequency * avg_cost * equipment_affected)
+        # Normalize components to avoid score being too large
+        high_cost = high_cost.copy()
+        high_cost['impact_score'] = (
+            high_cost['occurrences'] *
+            high_cost['avg_cost'] / 1000 *  # Normalize cost to thousands
+            (1 + high_cost['equipment_affected'])  # +1 to avoid zero
+        )
+
+        # Sort by impact score
+        result_df = high_cost.sort_values('impact_score', ascending=False)
+
+        logger.info(f"Found {len(result_df)} high-impact patterns")
+
+        return result_df
+
+    def get_pattern_recommendations(self, df: pd.DataFrame) -> List[Dict]:
+        """
+        Generate actionable recommendations for recurring high-cost patterns.
+
+        Args:
+            df: DataFrame with work order data
+
+        Returns:
+            List of recommendation dictionaries with keys:
+            - pattern: The failure pattern
+            - occurrences: Number of times it occurred
+            - total_cost: Total cost across all occurrences
+            - avg_cost: Average cost per occurrence
+            - category: Failure category
+            - equipment_affected: Number of equipment items affected
+            - suggestion: Actionable recommendation text
+        """
+        # Get high-impact patterns
+        high_impact = self.find_high_impact_patterns(df, min_occurrences=5)
+
+        if len(high_impact) == 0:
+            logger.info("No high-impact patterns found for recommendations")
+            return []
+
+        recommendations = []
+
+        for _, row in high_impact.iterrows():
+            pattern = row['pattern']
+            category = row['category']
+            occurrences = row['occurrences']
+            total_cost = row['total_cost']
+            avg_cost = row['avg_cost']
+            equipment_affected = row['equipment_affected']
+
+            # Generate category-specific suggestions
+            if category == 'leak':
+                suggestion = f"Inspect all affected equipment for {pattern}. Consider upgrading seals, gaskets, or piping to prevent future leaks."
+            elif category == 'broken':
+                suggestion = f"Review maintenance schedules for equipment experiencing {pattern}. Consider preventive replacement of vulnerable components."
+            elif category == 'electrical':
+                suggestion = f"Conduct electrical system audit for equipment showing {pattern}. Check for loose connections, aging wiring, or power quality issues."
+            elif category == 'malfunction':
+                suggestion = f"Investigate root cause of {pattern}. May indicate need for equipment upgrade or replacement if failures are frequent."
+            elif category == 'worn':
+                suggestion = f"Implement preventive maintenance program to replace components before {pattern} occurs. Schedule regular inspections."
+            elif category == 'clog':
+                suggestion = f"Increase cleaning frequency and inspect filters for equipment with {pattern}. Review fluid quality and filtration systems."
+            elif category == 'noise':
+                suggestion = f"Schedule vibration analysis and bearing inspection for equipment with {pattern}. Address before escalation to major failure."
+            elif category == 'motor':
+                suggestion = f"Review motor performance for equipment with {pattern}. Consider predictive maintenance using thermal imaging or vibration monitoring."
+            elif category == 'sensor':
+                suggestion = f"Calibrate or replace sensors experiencing {pattern}. Review sensor quality and environmental conditions."
+            elif category == 'valve':
+                suggestion = f"Inspect and service valves showing {pattern}. Consider upgrade to more reliable valve types if failures persist."
+            else:
+                suggestion = f"Investigate recurring {pattern} issue affecting {equipment_affected} equipment items. Develop targeted preventive maintenance strategy."
+
+            # Add equipment-specific context if available
+            if equipment_affected > 1:
+                suggestion += f" Priority: affects {equipment_affected} equipment items."
+
+            recommendations.append({
+                'pattern': pattern,
+                'occurrences': int(occurrences),
+                'total_cost': f"${total_cost:,.0f}",
+                'avg_cost': f"${avg_cost:,.0f}",
+                'category': category,
+                'equipment_affected': int(equipment_affected),
+                'suggestion': suggestion
+            })
+
+        logger.info(f"Generated {len(recommendations)} recommendations")
+
+        return recommendations
