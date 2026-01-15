@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-01-14)
 
 **Core value:** Accurate identification of cost reduction opportunities that stakeholders can confidently act on.
-**Current focus:** Phase 2 — Equipment Category Analysis
+**Current focus:** Phase 3 — Cost Pattern Analysis
 
 ## Current Position
 
-Phase: 2 of 6 (Equipment Category Analysis)
-Plan: 3 of 3 in current phase
+Phase: 3 of 6 (Cost Pattern Analysis)
+Plan: 2 of 3 in current phase
 Status: Completed
-Last activity: 2026-01-15 — Completed 02-03-PLAN.md (Phase 2 complete)
+Last activity: 2026-01-15 — Completed 03-02-PLAN.md (Vendor cost performance analysis)
 
-Progress: ███████░░░ 35%
+Progress: ████████░░ 40%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
+- Total plans completed: 8
 - Average duration: 4 min
-- Total execution time: 0.47 hours
+- Total execution time: 0.53 hours
 
 **By Phase:**
 
@@ -29,9 +29,10 @@ Progress: ███████░░░ 35%
 |-------|-------|-------|----------|
 | 1 | 4 | 16 min | 4 min |
 | 2 | 3 | 12 min | 4 min |
+| 3 | 1 | 4 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 5 min, 2 min, 6 min, 4 min
+- Last 5 plans: 2 min, 6 min, 4 min, 4 min
 - Trend: Steady pace
 
 ## Accumulated Context
@@ -69,6 +70,11 @@ Recent decisions affecting current work:
 - Outlier score levels: 1.0 consensus, 0.5 any flag, 0.0 none (Phase 2, Plan 3)
 - Filter to consensus outliers only for focused actionable results (Phase 2, Plan 3)
 - Thresholds calculated from median values of consensus outliers (Phase 2, Plan 3)
+- Minimum work order threshold of 3 for vendor analysis to exclude one-off contractors (Phase 3, Plan 2)
+- Cost efficiency metric: cost per day (avg_cost / avg_duration) for vendor performance (Phase 3, Plan 2)
+- Quality indicator: repeat rate (% equipment with 2+ WOs) as proxy for rework (Phase 3, Plan 2)
+- Vendor recommendation thresholds: 75th percentile for cost/duration/efficiency, >50% for quality (Phase 3, Plan 2)
+- Unknown contractors grouped as "Unknown" with configurable label, excluded by default (Phase 3, Plan 2)
 
 ### Deferred Issues
 
@@ -80,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-15T10:58:00Z
-Stopped at: Completed 02-03-PLAN.md (Phase 2 complete - all 3 plans done)
+Last session: 2026-01-15T11:15:00Z
+Stopped at: Completed 03-02-PLAN.md (Vendor cost performance analysis)
 Resume file: None
