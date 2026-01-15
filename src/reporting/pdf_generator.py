@@ -57,9 +57,19 @@ class PDFReportGenerator:
         self._add_table_of_contents(report)
         self._add_executive_summary(report.executive_summary)
 
-        # Add analysis sections
+        # Add analysis sections using specialized renderers
         for section in report.sections:
-            self._add_section(section)
+            if section.title == 'Equipment Analysis':
+                self._add_equipment_section(section)
+            elif section.title == 'Seasonal Analysis':
+                self._add_seasonal_section(section)
+            elif section.title == 'Vendor Performance':
+                self._add_vendor_section(section)
+            elif section.title == 'Failure Pattern Analysis':
+                self._add_failure_section(section)
+            else:
+                # Fallback to generic renderer for unknown sections
+                self._add_section(section)
 
         # Add consolidated recommendations page
         self._add_recommendations_page(report.sections)
@@ -161,6 +171,392 @@ class PDFReportGenerator:
         # Summary text
         self.pdf.set_font('Arial', '', 10)
         self.pdf.multi_cell(0, 6, summary_text)
+
+    def _add_equipment_section(self, section: ReportSection) -> None:
+        """
+        Specialized renderer for equipment analysis section.
+
+        Renders ranked equipment table (top 10), thresholds as text, and recommendations.
+
+        Args:
+            section: ReportSection with equipment analysis content
+        """
+        self.pdf.add_page()
+
+        # Section title
+        self.pdf.set_font('Arial', 'B', 16)
+        self.pdf.cell(0, 10, section.title, 0, 1, 'L')
+        self.pdf.ln(5)
+
+        # Summary text
+        self.pdf.set_font('Arial', '', 10)
+        self.pdf.multi_cell(0, 6, section.summary_text)
+        self.pdf.ln(5)
+
+        # Extract content
+        content = section.content
+
+        if isinstance(content, dict):
+            # Top equipment table
+            if 'top_equipment' in content and isinstance(content['top_equipment'], pd.DataFrame):
+                top_equipment = content['top_equipment']
+                if not top_equipment.empty:
+                    self.pdf.set_font('Arial', 'B', 12)
+                    self.pdf.cell(0, 8, 'Top Priority Equipment (Top 10)', 0, 1, 'L')
+                    self.pdf.ln(2)
+
+                    # Define column widths for equipment table
+                    col_widths = {
+                        'Equipment_Name': 35,
+                        'equipment_primary_category': 35,
+                        'work_orders_per_month': 25,
+                        'avg_cost': 25,
+                        'cost_impact': 25,
+                        'priority_score': 20,
+                        'overall_rank': 15
+                    }
+
+                    # Header row
+                    self.pdf.set_font('Arial', 'B', 8)
+                    self.pdf.set_fill_color(*self.HEADER_COLOR)
+                    self.pdf.set_text_color(255, 255, 255)
+
+                    col_labels = {
+                        'Equipment_Name': 'Equipment',
+                        'equipment_primary_category': 'Category',
+                        'work_orders_per_month': 'WO/Month',
+                        'avg_cost': 'Avg Cost',
+                        'cost_impact': 'Cost Impact',
+                        'priority_score': 'Priority',
+                        'overall_rank': 'Rank'
+                    }
+
+                    for col in top_equipment.columns:
+                        if col in col_widths:
+                            label = col_labels.get(col, col)
+                            self.pdf.cell(col_widths[col], 7, label, 1, 0, 'C', True)
+                    self.pdf.ln()
+
+                    # Data rows
+                    self.pdf.set_font('Arial', '', 8)
+                    self.pdf.set_text_color(0, 0, 0)
+
+                    for idx, row in top_equipment.iterrows():
+                        # Alternating row colors
+                        if idx % 2 == 0:
+                            self.pdf.set_fill_color(*self.ALT_ROW_COLOR)
+                            fill = True
+                        else:
+                            fill = False
+
+                        for col in top_equipment.columns:
+                            if col in col_widths:
+                                value = str(row[col])
+                                # Truncate long values
+                                max_len = int(col_widths[col] / 2)
+                                if len(value) > max_len:
+                                    value = value[:max_len-3] + '...'
+                                self.pdf.cell(col_widths[col], 6, value, 1, 0, 'L', fill)
+                        self.pdf.ln()
+
+            # Thresholds
+            if 'thresholds' in content and isinstance(content['thresholds'], dict):
+                self.pdf.ln(5)
+                self.pdf.set_font('Arial', 'B', 12)
+                self.pdf.cell(0, 8, 'Detection Thresholds', 0, 1, 'L')
+                self.pdf.set_font('Arial', '', 10)
+                thresholds = content['thresholds']
+                threshold_text = (
+                    f"Work Orders per Month: {thresholds.get('wo_per_month_threshold', 'N/A')}\n"
+                    f"Average Cost: {thresholds.get('avg_cost_threshold', 'N/A')}"
+                )
+                self.pdf.multi_cell(0, 6, threshold_text)
+
+        # Recommendations
+        if section.recommendations:
+            self.pdf.ln(5)
+            self.pdf.set_font('Arial', 'B', 12)
+            self.pdf.cell(0, 8, 'Recommendations', 0, 1, 'L')
+            self.pdf.ln(2)
+
+            self.pdf.set_font('Arial', '', 10)
+            for rec in section.recommendations:
+                x_pos = self.pdf.get_x()
+                y_pos = self.pdf.get_y()
+                self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
+                self.pdf.set_xy(x_pos + 7, y_pos)
+                self.pdf.multi_cell(0, 6, rec)
+
+    def _add_seasonal_section(self, section: ReportSection) -> None:
+        """
+        Specialized renderer for seasonal analysis section.
+
+        Renders monthly/quarterly cost tables and detected patterns as bulleted list.
+
+        Args:
+            section: ReportSection with seasonal analysis content
+        """
+        self.pdf.add_page()
+
+        # Section title
+        self.pdf.set_font('Arial', 'B', 16)
+        self.pdf.cell(0, 10, section.title, 0, 1, 'L')
+        self.pdf.ln(5)
+
+        # Summary text
+        self.pdf.set_font('Arial', '', 10)
+        self.pdf.multi_cell(0, 6, section.summary_text)
+        self.pdf.ln(5)
+
+        # Extract content
+        content = section.content
+
+        if isinstance(content, dict):
+            # Monthly costs table
+            if 'monthly_costs' in content and isinstance(content['monthly_costs'], pd.DataFrame):
+                monthly = content['monthly_costs']
+                if not monthly.empty:
+                    self.pdf.set_font('Arial', 'B', 12)
+                    self.pdf.cell(0, 8, 'Monthly Cost Trends', 0, 1, 'L')
+                    self.pdf.ln(2)
+                    self._format_table(monthly, max_rows=12)
+
+            # Quarterly costs table
+            if 'quarterly_costs' in content and isinstance(content['quarterly_costs'], pd.DataFrame):
+                quarterly = content['quarterly_costs']
+                if not quarterly.empty:
+                    self.pdf.ln(5)
+                    self.pdf.set_font('Arial', 'B', 12)
+                    self.pdf.cell(0, 8, 'Quarterly Cost Analysis', 0, 1, 'L')
+                    self.pdf.ln(2)
+                    self._format_table(quarterly, max_rows=8)
+
+            # Detected patterns
+            if 'patterns' in content and content['patterns']:
+                self.pdf.ln(5)
+                self.pdf.set_font('Arial', 'B', 12)
+                self.pdf.cell(0, 8, 'Detected Patterns', 0, 1, 'L')
+                self.pdf.ln(2)
+
+                self.pdf.set_font('Arial', '', 10)
+                for pattern in content['patterns']:
+                    pattern_text = pattern.get('pattern', 'Unknown pattern')
+                    x_pos = self.pdf.get_x()
+                    y_pos = self.pdf.get_y()
+                    self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
+                    self.pdf.set_xy(x_pos + 7, y_pos)
+                    self.pdf.multi_cell(0, 6, pattern_text)
+
+        # Recommendations
+        if section.recommendations:
+            self.pdf.ln(5)
+            self.pdf.set_font('Arial', 'B', 12)
+            self.pdf.cell(0, 8, 'Recommendations', 0, 1, 'L')
+            self.pdf.ln(2)
+
+            self.pdf.set_font('Arial', '', 10)
+            for rec in section.recommendations:
+                x_pos = self.pdf.get_x()
+                y_pos = self.pdf.get_y()
+                self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
+                self.pdf.set_xy(x_pos + 7, y_pos)
+                self.pdf.multi_cell(0, 6, rec)
+
+    def _add_vendor_section(self, section: ReportSection) -> None:
+        """
+        Specialized renderer for vendor performance section.
+
+        Renders vendor performance table (top 15) with cost, efficiency, and quality metrics.
+
+        Args:
+            section: ReportSection with vendor analysis content
+        """
+        self.pdf.add_page()
+
+        # Section title
+        self.pdf.set_font('Arial', 'B', 16)
+        self.pdf.cell(0, 10, section.title, 0, 1, 'L')
+        self.pdf.ln(5)
+
+        # Summary text
+        self.pdf.set_font('Arial', '', 10)
+        self.pdf.multi_cell(0, 6, section.summary_text)
+        self.pdf.ln(5)
+
+        # Extract content
+        content = section.content
+
+        if isinstance(content, dict):
+            # Top vendors table
+            if 'top_vendors' in content and isinstance(content['top_vendors'], pd.DataFrame):
+                vendors = content['top_vendors']
+                if not vendors.empty:
+                    self.pdf.set_font('Arial', 'B', 12)
+                    self.pdf.cell(0, 8, 'Top Vendors by Cost', 0, 1, 'L')
+                    self.pdf.ln(2)
+
+                    # Define column widths
+                    col_widths = {
+                        'contractor': 50,
+                        'total_cost': 30,
+                        'avg_cost_per_wo': 30,
+                        'work_order_count': 25,
+                        'avg_duration_days': 25
+                    }
+
+                    # Header row
+                    self.pdf.set_font('Arial', 'B', 8)
+                    self.pdf.set_fill_color(*self.HEADER_COLOR)
+                    self.pdf.set_text_color(255, 255, 255)
+
+                    col_labels = {
+                        'contractor': 'Contractor',
+                        'total_cost': 'Total Cost',
+                        'avg_cost_per_wo': 'Avg Cost/WO',
+                        'work_order_count': 'WO Count',
+                        'avg_duration_days': 'Avg Duration'
+                    }
+
+                    for col in vendors.columns:
+                        if col in col_widths:
+                            label = col_labels.get(col, col)
+                            self.pdf.cell(col_widths[col], 7, label, 1, 0, 'C', True)
+                    self.pdf.ln()
+
+                    # Data rows (top 15)
+                    self.pdf.set_font('Arial', '', 8)
+                    self.pdf.set_text_color(0, 0, 0)
+
+                    for idx, row in vendors.head(15).iterrows():
+                        # Alternating row colors
+                        if idx % 2 == 0:
+                            self.pdf.set_fill_color(*self.ALT_ROW_COLOR)
+                            fill = True
+                        else:
+                            fill = False
+
+                        for col in vendors.columns:
+                            if col in col_widths:
+                                value = str(row[col])
+                                # Truncate long values
+                                max_len = int(col_widths[col] / 2)
+                                if len(value) > max_len:
+                                    value = value[:max_len-3] + '...'
+                                self.pdf.cell(col_widths[col], 6, value, 1, 0, 'L', fill)
+                        self.pdf.ln()
+
+        # Recommendations
+        if section.recommendations:
+            self.pdf.ln(5)
+            self.pdf.set_font('Arial', 'B', 12)
+            self.pdf.cell(0, 8, 'Recommendations', 0, 1, 'L')
+            self.pdf.ln(2)
+
+            self.pdf.set_font('Arial', '', 10)
+            for rec in section.recommendations:
+                x_pos = self.pdf.get_x()
+                y_pos = self.pdf.get_y()
+                self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
+                self.pdf.set_xy(x_pos + 7, y_pos)
+                self.pdf.multi_cell(0, 6, rec)
+
+    def _add_failure_section(self, section: ReportSection) -> None:
+        """
+        Specialized renderer for failure pattern analysis section.
+
+        Renders high-impact patterns table (top 20) with occurrences, costs, and affected equipment.
+
+        Args:
+            section: ReportSection with failure pattern analysis content
+        """
+        self.pdf.add_page()
+
+        # Section title
+        self.pdf.set_font('Arial', 'B', 16)
+        self.pdf.cell(0, 10, section.title, 0, 1, 'L')
+        self.pdf.ln(5)
+
+        # Summary text
+        self.pdf.set_font('Arial', '', 10)
+        self.pdf.multi_cell(0, 6, section.summary_text)
+        self.pdf.ln(5)
+
+        # Extract content
+        content = section.content
+
+        if isinstance(content, dict):
+            # High-impact patterns table
+            if 'high_impact_patterns' in content and isinstance(content['high_impact_patterns'], pd.DataFrame):
+                patterns = content['high_impact_patterns']
+                if not patterns.empty:
+                    self.pdf.set_font('Arial', 'B', 12)
+                    self.pdf.cell(0, 8, 'High-Impact Failure Patterns (Top 20)', 0, 1, 'L')
+                    self.pdf.ln(2)
+
+                    # Define column widths
+                    col_widths = {
+                        'pattern': 70,
+                        'occurrences': 25,
+                        'total_cost': 30,
+                        'avg_cost': 30,
+                        'equipment_affected': 25
+                    }
+
+                    # Header row
+                    self.pdf.set_font('Arial', 'B', 8)
+                    self.pdf.set_fill_color(*self.HEADER_COLOR)
+                    self.pdf.set_text_color(255, 255, 255)
+
+                    col_labels = {
+                        'pattern': 'Pattern',
+                        'occurrences': 'Occurrences',
+                        'total_cost': 'Total Cost',
+                        'avg_cost': 'Avg Cost',
+                        'equipment_affected': 'Equipment'
+                    }
+
+                    for col in patterns.columns:
+                        if col in col_widths:
+                            label = col_labels.get(col, col)
+                            self.pdf.cell(col_widths[col], 7, label, 1, 0, 'C', True)
+                    self.pdf.ln()
+
+                    # Data rows (top 20)
+                    self.pdf.set_font('Arial', '', 8)
+                    self.pdf.set_text_color(0, 0, 0)
+
+                    for idx, row in patterns.head(20).iterrows():
+                        # Alternating row colors
+                        if idx % 2 == 0:
+                            self.pdf.set_fill_color(*self.ALT_ROW_COLOR)
+                            fill = True
+                        else:
+                            fill = False
+
+                        for col in patterns.columns:
+                            if col in col_widths:
+                                value = str(row[col])
+                                # Truncate long values
+                                max_len = int(col_widths[col] / 2)
+                                if len(value) > max_len:
+                                    value = value[:max_len-3] + '...'
+                                self.pdf.cell(col_widths[col], 6, value, 1, 0, 'L', fill)
+                        self.pdf.ln()
+
+        # Recommendations
+        if section.recommendations:
+            self.pdf.ln(5)
+            self.pdf.set_font('Arial', 'B', 12)
+            self.pdf.cell(0, 8, 'Recommendations', 0, 1, 'L')
+            self.pdf.ln(2)
+
+            self.pdf.set_font('Arial', '', 10)
+            for rec in section.recommendations:
+                x_pos = self.pdf.get_x()
+                y_pos = self.pdf.get_y()
+                self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
+                self.pdf.set_xy(x_pos + 7, y_pos)
+                self.pdf.multi_cell(0, 6, rec)
 
     def _add_section(self, section: ReportSection) -> None:
         """
