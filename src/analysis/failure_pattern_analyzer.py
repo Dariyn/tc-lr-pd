@@ -275,6 +275,10 @@ class FailurePatternAnalyzer:
                 for field in available_fields:
                     phrases_df = self.find_common_phrases(group, field=field, top_n=5)
 
+                    # Skip if no phrases found
+                    if len(phrases_df) == 0:
+                        continue
+
                     # Only include patterns that occur multiple times
                     recurring = phrases_df[phrases_df['frequency'] > 1]
 
@@ -305,6 +309,10 @@ class FailurePatternAnalyzer:
             # Analyze overall patterns
             for field in available_fields:
                 phrases_df = self.find_common_phrases(df, field=field, top_n=20)
+
+                # Skip if no phrases found
+                if len(phrases_df) == 0:
+                    continue
 
                 # Only include patterns that occur multiple times
                 recurring = phrases_df[phrases_df['frequency'] > 1]
