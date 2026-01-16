@@ -46,6 +46,18 @@ def sample_vendor_data():
 
 
 @pytest.fixture
+def sample_failure_patterns():
+    """Sample failure pattern data."""
+    return [
+        {'pattern': 'water leak', 'impact_score': 125.5, 'occurrences': 15, 'category': 'leak'},
+        {'pattern': 'circuit breaker trip', 'impact_score': 98.2, 'occurrences': 12, 'category': 'electrical'},
+        {'pattern': 'motor failure', 'impact_score': 87.3, 'occurrences': 10, 'category': 'mechanical'},
+        {'pattern': 'sensor malfunction', 'impact_score': 65.8, 'occurrences': 8, 'category': 'electrical'},
+        {'pattern': 'drain clog', 'impact_score': 45.2, 'occurrences': 6, 'category': 'other'},
+    ]
+
+
+@pytest.fixture
 def chart_generator():
     """Chart generator instance."""
     return ChartGenerator(dpi=100)  # Lower DPI for faster tests
@@ -246,3 +258,193 @@ class TestVendorPerformanceChart:
         # Should create placeholder chart
         assert output_file.exists()
         assert output_file.stat().st_size > 0
+
+
+class TestFailurePatternChart:
+    """Tests for failure pattern chart generation."""
+
+    def test_failure_pattern_chart(self, chart_generator, sample_failure_patterns, tmp_path):
+        """Test creating failure pattern chart."""
+        output_file = tmp_path / "failure_patterns.png"
+
+        chart_generator.create_failure_pattern_chart(
+            sample_failure_patterns,
+            output_file,
+            top_n=5,
+            format='png'
+        )
+
+        # Verify file exists and has content
+        assert output_file.exists()
+        assert output_file.stat().st_size > 0
+
+    def test_failure_pattern_categories(self, chart_generator, sample_failure_patterns, tmp_path):
+        """Test failure pattern chart color coding by category."""
+        output_file = tmp_path / "failure_categories.png"
+
+        chart_generator.create_failure_pattern_chart(
+            sample_failure_patterns,
+            output_file,
+            format='png'
+        )
+
+        # Verify file created with categories
+        assert output_file.exists()
+        assert output_file.stat().st_size > 0
+
+    def test_failure_pattern_empty_data(self, chart_generator, tmp_path):
+        """Test handling empty failure pattern data."""
+        output_file = tmp_path / "failure_empty.png"
+
+        chart_generator.create_failure_pattern_chart(
+            [],
+            output_file,
+            format='png'
+        )
+
+        # Should create placeholder chart
+        assert output_file.exists()
+        assert output_file.stat().st_size > 0
+
+    def test_failure_pattern_uncategorized(self, chart_generator, tmp_path):
+        """Test handling patterns without categories."""
+        output_file = tmp_path / "failure_no_category.png"
+        patterns = [
+            {'pattern': 'unknown issue', 'impact_score': 50.0, 'occurrences': 5},
+            {'pattern': 'other problem', 'impact_score': 30.0, 'occurrences': 3},
+        ]
+
+        chart_generator.create_failure_pattern_chart(
+            patterns,
+            output_file,
+            format='png'
+        )
+
+        # Should handle missing categories gracefully
+        assert output_file.exists()
+        assert output_file.stat().st_size > 0
+
+
+class TestChartFormats:
+    """Tests for chart file format support."""
+
+    def test_chart_file_formats_equipment(self, chart_generator, sample_equipment_data, tmp_path):
+        """Test both PNG and SVG formats work for equipment charts."""
+        png_file = tmp_path / "equipment.png"
+        svg_file = tmp_path / "equipment.svg"
+
+        # Test PNG
+        chart_generator.create_equipment_ranking_chart(
+            sample_equipment_data, png_file, format='png'
+        )
+        assert png_file.exists()
+        with open(png_file, 'rb') as f:
+            assert f.read(8) == b'\x89PNG\r\n\x1a\n'
+
+        # Test SVG
+        chart_generator.create_equipment_ranking_chart(
+            sample_equipment_data, svg_file, format='svg'
+        )
+        assert svg_file.exists()
+        with open(svg_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+            assert '<svg' in content or '<?xml' in content
+
+    def test_chart_file_formats_seasonal(self, chart_generator, sample_seasonal_data, tmp_path):
+        """Test both PNG and SVG formats work for seasonal charts."""
+        png_file = tmp_path / "seasonal.png"
+        svg_file = tmp_path / "seasonal.svg"
+
+        # Test PNG
+        chart_generator.create_seasonal_trend_chart(
+            sample_seasonal_data, png_file, format='png'
+        )
+        assert png_file.exists()
+
+        # Test SVG
+        chart_generator.create_seasonal_trend_chart(
+            sample_seasonal_data, svg_file, format='svg'
+        )
+        assert svg_file.exists()
+
+    def test_chart_file_formats_vendor(self, chart_generator, sample_vendor_data, tmp_path):
+        """Test both PNG and SVG formats work for vendor charts."""
+        png_file = tmp_path / "vendor.png"
+        svg_file = tmp_path / "vendor.svg"
+
+        # Test PNG
+        chart_generator.create_vendor_performance_chart(
+            sample_vendor_data, png_file, format='png'
+        )
+        assert png_file.exists()
+
+        # Test SVG
+        chart_generator.create_vendor_performance_chart(
+            sample_vendor_data, svg_file, format='svg'
+        )
+        assert svg_file.exists()
+
+    def test_chart_file_formats_failure(self, chart_generator, sample_failure_patterns, tmp_path):
+        """Test both PNG and SVG formats work for failure pattern charts."""
+        png_file = tmp_path / "failure.png"
+        svg_file = tmp_path / "failure.svg"
+
+        # Test PNG
+        chart_generator.create_failure_pattern_chart(
+            sample_failure_patterns, png_file, format='png'
+        )
+        assert png_file.exists()
+
+        # Test SVG
+        chart_generator.create_failure_pattern_chart(
+            sample_failure_patterns, svg_file, format='svg'
+        )
+        assert svg_file.exists()
+
+
+class TestChartCustomization:
+    """Tests for chart customization options."""
+
+    def test_chart_custom_style(self, sample_equipment_data, tmp_path):
+        """Test creating chart generator with custom style."""
+        # Test with default style
+        generator = ChartGenerator(style='default', dpi=100)
+        output_file = tmp_path / "custom_style.png"
+
+        generator.create_equipment_ranking_chart(
+            sample_equipment_data, output_file, format='png'
+        )
+
+        # Verify chart created successfully
+        assert output_file.exists()
+        assert output_file.stat().st_size > 0
+
+    def test_chart_empty_data_all_types(self, chart_generator, tmp_path):
+        """Test all chart types handle empty data gracefully."""
+        # Equipment
+        eq_file = tmp_path / "empty_eq.png"
+        chart_generator.create_equipment_ranking_chart(
+            pd.DataFrame(), eq_file, format='png'
+        )
+        assert eq_file.exists()
+
+        # Seasonal
+        seasonal_file = tmp_path / "empty_seasonal.png"
+        chart_generator.create_seasonal_trend_chart(
+            {}, seasonal_file, format='png'
+        )
+        assert seasonal_file.exists()
+
+        # Vendor
+        vendor_file = tmp_path / "empty_vendor.png"
+        chart_generator.create_vendor_performance_chart(
+            pd.DataFrame(), vendor_file, format='png'
+        )
+        assert vendor_file.exists()
+
+        # Failure
+        failure_file = tmp_path / "empty_failure.png"
+        chart_generator.create_failure_pattern_chart(
+            [], failure_file, format='png'
+        )
+        assert failure_file.exists()

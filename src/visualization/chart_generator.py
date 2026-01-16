@@ -358,6 +358,106 @@ class ChartGenerator:
 
         logger.info(f"Vendor performance chart saved to {output_path}")
 
+    def create_failure_pattern_chart(
+        self,
+        patterns_list: list,
+        output_path: Union[str, Path],
+        top_n: int = 10,
+        format: Literal['png', 'svg'] = 'png'
+    ) -> None:
+        """
+        Create horizontal bar chart of top failure patterns by impact score.
+
+        Args:
+            patterns_list: List of dictionaries with keys: pattern, impact_score,
+                          occurrences, category
+            output_path: Path to save the chart
+            top_n: Number of top patterns to display (default: 10)
+            format: Output format - 'png' or 'svg' (default: 'png')
+        """
+        # Handle edge cases
+        if not patterns_list or len(patterns_list) == 0:
+            logger.warning("Empty patterns list for failure pattern chart")
+            self._create_empty_chart(output_path, "No failure pattern data available", format)
+            return
+
+        # Convert to DataFrame for easier manipulation
+        df = pd.DataFrame(patterns_list)
+
+        # Validate required columns
+        if 'pattern' not in df.columns or 'impact_score' not in df.columns:
+            logger.error("Missing required columns (pattern, impact_score)")
+            self._create_empty_chart(output_path, "Missing required data columns", format)
+            return
+
+        # Get top N patterns
+        df_plot = df.head(min(top_n, len(df))).copy()
+
+        # Create figure
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        # Get colors by category if available
+        if 'category' in df_plot.columns:
+            bar_colors = [
+                self.FAILURE_CATEGORY_COLORS.get(cat, self.FAILURE_CATEGORY_COLORS['other'])
+                for cat in df_plot['category']
+            ]
+        else:
+            bar_colors = self.COLORS['primary']
+
+        # Create horizontal bar chart (reverse order for top-to-bottom display)
+        y_pos = range(len(df_plot))
+        bars = ax.barh(y_pos, df_plot['impact_score'], color=bar_colors)
+
+        # Add annotation showing frequency count if available
+        if 'occurrences' in df_plot.columns:
+            for i, (idx, row) in enumerate(df_plot.iterrows()):
+                count = int(row['occurrences'])
+                ax.text(
+                    row['impact_score'] + (row['impact_score'] * 0.02),
+                    i,
+                    f"{count}x",
+                    va='center',
+                    fontsize=9,
+                    color='#333333'
+                )
+
+        # Set labels and title
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(df_plot['pattern'])
+        ax.set_xlabel('Impact Score', fontsize=11, fontweight='bold')
+        ax.set_title('High-Impact Failure Patterns', fontsize=14, fontweight='bold', pad=20)
+
+        # Add grid for readability
+        ax.grid(axis='x', alpha=0.3, linestyle='--')
+        ax.set_axisbelow(True)
+
+        # Invert y-axis to show highest impact at top
+        ax.invert_yaxis()
+
+        # Add legend for categories if present
+        if 'category' in df_plot.columns:
+            unique_categories = df_plot['category'].unique()
+            legend_patches = [
+                mpatches.Patch(
+                    color=self.FAILURE_CATEGORY_COLORS.get(cat, self.FAILURE_CATEGORY_COLORS['other']),
+                    label=cat.capitalize()
+                )
+                for cat in unique_categories
+            ]
+            ax.legend(handles=legend_patches, loc='lower right')
+
+        # Adjust layout
+        plt.tight_layout()
+
+        # Save chart
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(output_path, format=format, dpi=self.dpi, bbox_inches='tight')
+        plt.close()
+
+        logger.info(f"Failure pattern chart saved to {output_path}")
+
     def _create_empty_chart(
         self,
         output_path: Union[str, Path],
