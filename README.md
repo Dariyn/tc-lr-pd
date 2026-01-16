@@ -1,223 +1,177 @@
 # Work Order Cost Reduction Analysis Pipeline
 
-Analyzes adhoc work order data to identify cost reduction opportunities through pattern analysis and equipment performance comparisons.
+A comprehensive analysis pipeline that processes maintenance work order data to identify cost reduction opportunities through statistical analysis, pattern detection, and automated reporting.
 
 ## Overview
 
-This pipeline processes work order data (Excel/CSV) through a series of stages to produce quality-validated, analysis-ready data. It identifies equipment with abnormal repair frequencies, validates data quality, and provides comprehensive metrics for cost reduction analysis.
+The Work Order Cost Reduction Analysis Pipeline transforms historical work order data into actionable insights for budget planning and maintenance optimization. By analyzing equipment maintenance patterns, seasonal trends, vendor performance, and failure modes, the pipeline identifies high-maintenance equipment and recurring cost drivers that stakeholders can confidently address.
 
-## Phase 1 Status: Data Pipeline Foundation Complete
+The pipeline processes adhoc work order data (Excel or CSV format) through a multi-stage analysis workflow and produces professional PDF reports, detailed Excel workbooks, structured data exports (CSV/JSON), and interactive HTML dashboards. All outputs are designed to inform budget planning decisions with accurate, data-driven recommendations.
 
-The foundation is now complete and provides:
-- Data loading with schema validation
-- Data cleaning and standardization
-- Category normalization
-- Quality reporting and validation
+Stakeholders receive clear identification of:
+- **High-maintenance equipment** - Statistical outlier detection identifies equipment with abnormally high repair frequencies or costs within their category
+- **Seasonal cost patterns** - Monthly and quarterly trend analysis reveals budget planning opportunities
+- **Vendor performance issues** - Cost efficiency, duration, and quality metrics highlight underperforming contractors
+- **Recurring failure patterns** - Text analysis extracts common repair descriptions and failure modes
 
-Ready for Phase 2: Equipment Category Analysis
+## Features
 
-## Setup
+- **Automated work order data ingestion and cleaning** - Handles Excel (.xlsx) and CSV formats with robust error handling and data quality validation
+- **Equipment maintenance priority ranking** - Multi-method statistical outlier detection (Z-score, IQR, percentile) with consensus-based flagging
+- **Seasonal cost trend analysis** - Monthly and quarterly aggregation with pattern detection and variance calculation
+- **Vendor performance comparison** - Cost efficiency, average duration, repeat work rates, and actionable recommendations
+- **Failure pattern identification** - Keyword extraction from work order descriptions with impact scoring
+- **Multiple output formats**:
+  - **PDF reports** - Executive-friendly summary with visualizations and recommendations
+  - **Excel workbooks** - 6-sheet detailed analysis with filters and formatting for data exploration
+  - **CSV/JSON exports** - Structured data files for integration with other tools
+  - **Interactive HTML dashboards** - Plotly-based visualizations with filtering and hover details
+- **Comprehensive data quality validation** - Automated checks for completeness, consistency, and outlier rates with pass/fail scoring
 
-### Requirements
-- Python 3.8+
-- Dependencies listed in requirements.txt
+## Requirements
 
-### Installation
+- **Python 3.9+**
+- **Dependencies:** See requirements.txt
+  - pandas (data processing)
+  - openpyxl (Excel I/O)
+  - scipy (statistical analysis)
+  - fpdf2 (PDF generation)
+  - xlsxwriter (Excel report formatting)
+  - matplotlib (static charts)
+  - plotly (interactive visualizations)
+- **Input:** CSV or Excel file with work order data (see Input Data Format below)
+
+## Installation
 
 ```bash
+# Clone repository
+git clone https://github.com/yourusername/linkreit-pd.git
+cd linkreit-pd
+
+# Create virtual environment (recommended)
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scriptsctivate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-## Usage
-
-### Run Full Pipeline
+## Quick Start
 
 ```bash
-python -m src.pipeline.pipeline
+# Run basic analysis with PDF and Excel reports (default)
+python main.py analyze -i data/work_orders.csv
+
+# Generate all outputs (reports + exports + visualizations)
+python main.py analyze -i data/work_orders.csv --all
+
+# Custom output directory
+python main.py analyze -i data/work_orders.csv -o results/
+
+# Exports and visualizations only (skip reports)
+python main.py analyze -i data/work_orders.csv --no-reports --exports --visualizations
 ```
 
-This runs the complete pipeline on the default input file and displays a quality report.
+## Input Data Format
 
-### Quality Report Output
+The pipeline expects work order data with the following columns:
 
-The pipeline generates a comprehensive quality report showing:
-- **Overall Quality Score** (0-100) with pass/fail status
-- **Component Scores**: Completeness, Consistency, Outlier Rate
-- **Field Completeness**: Percentage of non-null values for critical fields
-- **Data Consistency**: Category consistency, date order validation, cost validation
-- **Outliers**: Cost and duration outliers flagged for review
-- **Coverage**: Date range, equipment count, category count, property count
-- **Recommendations**: Actionable suggestions for data quality improvements
+| Column | Description | Example | Required |
+|--------|-------------|---------|----------|
+| Work_order_id | Unique work order identifier | WO-001 | Yes |
+| Equipment_ID | Equipment identifier | EQ-12345 | Yes* |
+| Equipment_Name | Equipment description | Air Conditioner Unit 3 | Yes |
+| Contractor | Vendor/contractor name | ABC Maintenance | No |
+| Service_Type_lv2 | Service category level 2 | HVAC Repair | No |
+| FM_Type | Facility management type | Mechanical | No |
+| PO_AMOUNT | Purchase order amount (cost) | 1250.50 | Yes |
+| Work_Order_created_Date | Work order creation date | 2024-01-15 | Yes |
+| Work_Order_Completed_Date | Work order completion date | 2024-01-18 | Yes |
+| Work_Order_Description | Problem description | AC compressor failure | No |
 
-Example output:
-```
-============================================================
-DATA QUALITY REPORT
-============================================================
+*Equipment_ID is auto-generated from Equipment_Name hash if missing.
 
-Overall Quality Score: 84.13/100 [FAILED]
+**Data Quality Requirements:**
+- At least 85% of records must have complete required fields
+- Valid date formats (ISO 8601 or common formats)
+- Numeric cost values (negative values excluded from analysis)
+- Consistent equipment categorization (80%+ consistency threshold)
 
-Component Scores:
-  Completeness:  92.94/100 (40% weight)
-  Consistency:   67.59/100 (40% weight)
-  Outlier Rate:  99.58/100 (20% weight)
+## Output Files
 
-Key Metrics:
-  Total Records: 19,291
+After running the pipeline, outputs are organized in the `output/` directory:
 
-  Field Completeness:
-    [OK] Equipment_ID: 100.0%
-    [OK] EquipmentName: 100.0%
-    [OK] equipment_category: 100.0%
-    [OK] Create_Date: 100.0%
-    [LOW] Complete_Date: 57.7%
-    [OK] PO_AMOUNT: 100.0%
+### Reports (`output/reports/`)
+- `work_order_analysis.pdf` - Executive summary with visualizations, outlier equipment lists, seasonal trends, vendor recommendations, and failure patterns
+- `work_order_analysis.xlsx` - Detailed 6-sheet workbook:
+  - **Summary** - Key metrics and recommendations
+  - **Equipment** - Ranked equipment with frequency, cost, and outlier flags
+  - **Seasonal** - Monthly and quarterly cost trends
+  - **Vendors** - Vendor performance metrics and rankings
+  - **Failures** - High-impact failure patterns with frequencies
+  - **Recommendations** - Actionable items by category
 
-  Data Consistency:
-    Category Consistency: 52.0%
-    Valid Date Order: 50.8%
-    Valid Costs (>=0): 100.0%
+### Exports (`output/exports/`)
+Structured data files (CSV and JSON formats) for each analysis type:
+- `equipment_rankings.csv/json` - Complete equipment analysis with scores
+- `seasonal_patterns.csv/json` - Monthly and quarterly cost data
+- `vendor_metrics.csv/json` - Vendor performance statistics
+- `failure_patterns.csv/json` - Extracted patterns with impact scores
 
-  Outliers Detected:
-    Cost Outliers: 106 (0.55%)
-    Duration Outliers: 57 (0.30%)
+### Visualizations (`output/visualizations/`)
+- `equipment_ranking.png` - Top 10 equipment by priority score
+- `seasonal_costs.png` - Monthly cost trends over time
+- `vendor_costs.png` - Vendor performance comparison
+- `failure_patterns.png` - Top 10 failure patterns by frequency
+- `dashboard.html` - Interactive dashboard with all 4 chart types, filtering, and hover details
 
-  Data Coverage:
-    Date Range: 2026-01-14 to 2026-01-14
-    Days Covered: 0
-    Unique Equipment: 60
-    Unique Categories: 30
-    Unique Properties: 205
+## Documentation
 
-Recommendations:
-  1. Address data completeness issues: Complete_Date only 57.7% complete (8168 nulls)
-  2. Review 49.2% of records with Complete_Date before Create_Date
-
-============================================================
-```
+- [Usage Guide](docs/USAGE.md) - Detailed usage scenarios, CLI reference, and troubleshooting
+- [Architecture](docs/ARCHITECTURE.md) - System design, module overview, and data flow
+- [API Reference](docs/API.md) - Programmatic API documentation for Python integration
 
 ## Project Structure
 
 ```
-src/
-├── pipeline/
-│   ├── data_loader.py       # Loads and validates CSV/Excel data
-│   ├── data_cleaner.py      # Cleans and standardizes data
-│   ├── categorizer.py       # Normalizes equipment categories
-│   ├── quality_reporter.py  # Generates quality metrics
-│   └── pipeline.py          # Orchestrates full pipeline
-├── __init__.py
-tests/
-├── test_data_cleaner.py
-├── test_categorizer.py
-└── __init__.py
-input/
-└── adhoc_wo_20240101_20250531.xlsx - in.csv
-requirements.txt
-README.md
+linkreit-pd/
+├── main.py                    # CLI entry point
+├── requirements.txt           # Python dependencies
+├── data/                      # Input data files (user-provided)
+├── output/                    # Generated outputs
+│   ├── reports/              # PDF and Excel reports
+│   ├── exports/              # CSV and JSON exports
+│   └── visualizations/       # Charts and dashboard
+├── src/
+│   ├── pipeline/             # Data pipeline (load, clean, categorize, quality)
+│   ├── analysis/             # Analysis modules (equipment, seasonal, vendor, failure)
+│   ├── reporting/            # Report generation (PDF, Excel)
+│   ├── exports/              # Data export utilities
+│   ├── visualization/        # Chart and dashboard generation
+│   └── orchestrator/         # Pipeline orchestration
+└── tests/                     # Test suite
 ```
 
-### Module Descriptions
+## Example Workflow
 
-#### data_loader.py
-Loads work order data from CSV or Excel files with:
-- Schema validation (ensures required fields are present)
-- Date parsing (Create_Date, Complete_Date, Close_Date)
-- Numeric conversion (PO_AMOUNT)
-- UTF-8-sig encoding support for BOM characters
-- Comprehensive logging for data quality issues
+1. **Prepare data** - Export work order data from your system as CSV or Excel
+2. **Run analysis** - Execute pipeline with desired output flags
+3. **Review quality report** - Check console output for data quality score (must be 85+)
+4. **Examine outputs**:
+   - PDF report for executive summary
+   - Excel workbook for detailed exploration with filters
+   - Interactive dashboard for visual pattern discovery
+   - CSV exports for integration with other tools
+5. **Share with stakeholders** - Distribute reports and recommendations for budget planning
 
-#### data_cleaner.py
-Cleans and standardizes data with:
-- Equipment ID handling (generates synthetic IDs from names when missing)
-- Cost data cleaning (fills missing PO_AMOUNT with 0, flags outliers)
-- Date data cleaning (uses Close_Date as fallback, calculates duration)
-- Outlier detection (99th percentile threshold for cost and duration)
-- Drops records with missing critical data (no equipment identifier or Create_Date)
+## License
 
-#### categorizer.py
-Normalizes equipment categories with:
-- Priority-based category assignment (service_type_lv2 > FM_Type > Uncategorized)
-- Equipment primary category assignment based on mode frequency
-- Consistency scoring (flags equipment with <80% consistency as potentially miscategorized)
-- Category hierarchy generation for analysis-ready groupings
+[Specify license - MIT recommended for open source]
 
-#### quality_reporter.py
-Generates comprehensive quality metrics:
-- **Completeness metrics**: Percentage of non-null values for critical fields
-- **Consistency metrics**: Category consistency, date order validation, cost validation
-- **Outlier metrics**: Cost and duration outliers with thresholds
-- **Coverage metrics**: Date range, equipment count, category count, property count
-- **Overall quality score**: Weighted average (completeness 40%, consistency 40%, outlier rate 20%)
-- **Recommendations**: Actionable suggestions based on quality analysis
+## Contributing
 
-#### pipeline.py
-Orchestrates the complete pipeline:
-- Runs load → clean → categorize → validate workflow
-- Comprehensive error handling at each stage
-- Progress logging for observability
-- Optional CSV output for processed data
-- CLI entry point with exit codes (0 = success, 1 = quality concerns)
+[Add contribution guidelines if applicable]
 
-## Data Quality Metrics Explained
+## Support
 
-### Completeness (40% weight)
-Measures the percentage of non-null values for critical fields:
-- Equipment_ID, EquipmentName, equipment_category
-- Create_Date, Complete_Date, PO_AMOUNT
-
-Fields with <95% completeness are flagged as quality concerns.
-
-### Consistency (40% weight)
-Measures data integrity:
-- **Category Consistency**: Average consistency score for equipment categorization (0-100%)
-- **Date Consistency**: Percentage of records with Complete_Date >= Create_Date
-- **Cost Consistency**: Percentage of records with PO_AMOUNT >= 0
-
-### Outlier Rate (20% weight)
-Inverse of outlier detection rate:
-- **Cost Outliers**: Records with PO_AMOUNT > 99th percentile
-- **Duration Outliers**: Records with duration_hours > 99th percentile
-
-Lower outlier rates indicate better data quality (outliers are flagged, not removed).
-
-### Overall Quality Score
-Weighted average of component scores:
-```
-Score = (Completeness * 0.40) + (Consistency * 0.40) + (Outlier Rate * 0.20)
-```
-
-**Pass threshold**: 85/100
-
-Quality scores help validate data readiness for downstream analysis and identify areas needing attention.
-
-## Next Steps
-
-Phase 2 will add equipment category analysis to:
-- Identify equipment with abnormally high adhoc repair frequencies
-- Compare equipment performance within categories
-- Generate ranked lists of equipment for cost reduction opportunities
-
-## Input Data Format
-
-Expected CSV/Excel columns:
-- **Equipment_ID**: Unique equipment identifier (can be missing if EquipmentName provided)
-- **EquipmentName**: Equipment name (used to generate synthetic ID if Equipment_ID missing)
-- **equipment_category**: Primary category (derived from service_type_lv2 or FM_Type)
-- **Create_Date**: Work order creation date (required)
-- **Complete_Date**: Work order completion date (optional, Close_Date used as fallback)
-- **PO_AMOUNT**: Purchase order amount (optional, filled with 0 if missing)
-- **service_type_lv2**: Service type level 2 (used for category normalization)
-- **FM_Type**: Facility management type (fallback for category normalization)
-- **Property**: Property identifier (for coverage analysis)
-
-## Testing
-
-Run tests with pytest:
-```bash
-pytest tests/
-```
-
-Current test coverage:
-- data_cleaner.py: 9 tests
-- categorizer.py: 9 tests
+For issues, questions, or feature requests, please [open an issue](https://github.com/yourusername/linkreit-pd/issues).
