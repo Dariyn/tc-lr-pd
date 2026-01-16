@@ -527,9 +527,9 @@ class PipelineOrchestrator:
             chart_files.append(str(equipment_chart))
             logger.info(f"✓ Equipment chart saved: {equipment_chart}")
 
-            logger.info("\n[2/5] Generating seasonal costs chart...")
+            logger.info("\n[2/5] Generating seasonal trend chart...")
             seasonal_chart = self.output_dir / 'visualizations' / 'seasonal_costs.png'
-            chart_gen.create_seasonal_costs_chart(
+            chart_gen.create_seasonal_trend_chart(
                 analysis_results['seasonal_dict'].get('monthly_costs', pd.DataFrame()),
                 seasonal_chart,
                 format='png'
@@ -537,9 +537,9 @@ class PipelineOrchestrator:
             chart_files.append(str(seasonal_chart))
             logger.info(f"✓ Seasonal chart saved: {seasonal_chart}")
 
-            logger.info("\n[3/5] Generating vendor costs chart...")
+            logger.info("\n[3/5] Generating vendor performance chart...")
             vendor_chart = self.output_dir / 'visualizations' / 'vendor_costs.png'
-            chart_gen.create_vendor_costs_chart(
+            chart_gen.create_vendor_performance_chart(
                 analysis_results['vendor_df'],
                 vendor_chart,
                 top_n=10,
@@ -548,14 +548,14 @@ class PipelineOrchestrator:
             chart_files.append(str(vendor_chart))
             logger.info(f"✓ Vendor chart saved: {vendor_chart}")
 
-            logger.info("\n[4/5] Generating failure patterns chart...")
+            logger.info("\n[4/5] Generating failure pattern chart...")
             failure_chart = self.output_dir / 'visualizations' / 'failure_patterns.png'
             # Convert patterns list to DataFrame if needed
             if analysis_results['patterns_list']:
                 patterns_df = pd.DataFrame(analysis_results['patterns_list'])
             else:
                 patterns_df = pd.DataFrame()
-            chart_gen.create_failure_patterns_chart(
+            chart_gen.create_failure_pattern_chart(
                 patterns_df,
                 failure_chart,
                 top_n=10,
@@ -567,11 +567,11 @@ class PipelineOrchestrator:
             # Generate interactive dashboard
             logger.info("\n[5/5] Generating interactive dashboard...")
             dashboard_path = self.output_dir / 'visualizations' / 'dashboard.html'
-            dashboard_gen.create_comprehensive_dashboard(
+            dashboard_gen.create_dashboard(
                 equipment_df=analysis_results['equipment_df'],
                 seasonal_dict=analysis_results['seasonal_dict'],
                 vendor_df=analysis_results['vendor_df'],
-                failure_patterns=analysis_results['patterns_list'],
+                patterns_list=analysis_results['patterns_list'],
                 output_path=dashboard_path
             )
             logger.info(f"✓ Dashboard saved: {dashboard_path}")
