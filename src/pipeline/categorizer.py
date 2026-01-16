@@ -28,10 +28,15 @@ def normalize_categories(df: pd.DataFrame) -> pd.DataFrame:
     - equipment_category: primary category (service_type_lv2 > FM_Type > 'Uncategorized')
     - equipment_subcategory: granular category (service_type_lv3 > service_type_lv2 > 'General')
 
+    Special handling for "No Equipment" records (is_no_equipment=True):
+    - These are interior fixes/general maintenance without specific equipment
+    - Assigned to 'No Equipment' category before fallback logic
+
     Handles mixed language text (Chinese/English) by preserving as-is with whitespace stripped.
 
     Args:
         df: DataFrame with raw work order data containing classification fields
+            Must have is_no_equipment column from data_cleaner
 
     Returns:
         DataFrame with added equipment_category and equipment_subcategory columns
@@ -43,15 +48,40 @@ def normalize_categories(df: pd.DataFrame) -> pd.DataFrame:
     """
     logger.info("Starting category normalization")
 
-    # Create equipment_category with priority fallback
-    df['equipment_category'] = df['service_type_lv2'].fillna(
-        df['FM_Type']
-    ).fillna('Uncategorized')
+    # Initialize category columns
+    df['equipment_category'] = None
+    df['equipment_subcategory'] = None
 
-    # Create equipment_subcategory from most granular level
-    df['equipment_subcategory'] = df['service_type_lv3'].fillna(
-        df['service_type_lv2']
-    ).fillna('General')
+    # Step 1: Handle "No Equipment" records first (if flag exists from data_cleaner)
+    if 'is_no_equipment' in df.columns:
+        no_equip_mask = df['is_no_equipment']
+        no_equip_count = no_equip_mask.sum()
+        if no_equip_count > 0:
+            df.loc[no_equip_mask, 'equipment_category'] = 'No Equipment'
+            df.loc[no_equip_mask, 'equipment_subcategory'] = 'Interior/General'
+            logger.info(
+                f"Assigned {no_equip_count} records to 'No Equipment' category "
+                f"(interior fixes, general maintenance)"
+            )
+
+    # Step 2: For remaining records, use priority fallback
+    # Get mask for records that still need categorization
+    needs_category_mask = df['equipment_category'].isna()
+
+    if needs_category_mask.any():
+        # Create equipment_category with priority fallback
+        df.loc[needs_category_mask, 'equipment_category'] = (
+            df.loc[needs_category_mask, 'service_type_lv2'].fillna(
+                df.loc[needs_category_mask, 'FM_Type']
+            ).fillna('Uncategorized')
+        )
+
+        # Create equipment_subcategory from most granular level
+        df.loc[needs_category_mask, 'equipment_subcategory'] = (
+            df.loc[needs_category_mask, 'service_type_lv3'].fillna(
+                df.loc[needs_category_mask, 'service_type_lv2']
+            ).fillna('General')
+        )
 
     # Standardize text: strip whitespace and title case
     df['equipment_category'] = df['equipment_category'].str.strip().str.title()
@@ -59,11 +89,13 @@ def normalize_categories(df: pd.DataFrame) -> pd.DataFrame:
 
     # Count category assignments
     uncategorized_count = (df['equipment_category'] == 'Uncategorized').sum()
+    no_equipment_count = (df['equipment_category'] == 'No Equipment').sum()
     unique_categories = df['equipment_category'].nunique()
 
     logger.info(
         f"Category normalization complete: "
         f"{unique_categories} unique categories, "
+        f"{no_equipment_count} 'No Equipment' records, "
         f"{uncategorized_count} uncategorized work orders"
     )
 

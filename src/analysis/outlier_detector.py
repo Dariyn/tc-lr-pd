@@ -150,7 +150,11 @@ def detect_percentile_outliers(freq_df: pd.DataFrame, percentile: float = 90) ->
     return result_df
 
 
-def detect_outliers(freq_df: pd.DataFrame, methods: list = None) -> pd.DataFrame:
+def detect_outliers(
+    freq_df: pd.DataFrame,
+    methods: list = None,
+    exclude_no_equipment: bool = True
+) -> pd.DataFrame:
     """
     Orchestrate multiple outlier detection methods with consensus flagging.
 
@@ -164,6 +168,9 @@ def detect_outliers(freq_df: pd.DataFrame, methods: list = None) -> pd.DataFrame
             - work_orders_per_month
         methods: List of methods to apply. Options: ['zscore', 'iqr', 'percentile']
                 Default: all three methods
+        exclude_no_equipment: If True (default), exclude 'No Equipment' category
+            from outlier detection. These records represent interior/general
+            maintenance without specific equipment to analyze.
 
     Returns:
         DataFrame with all outlier flags plus:
@@ -174,6 +181,16 @@ def detect_outliers(freq_df: pd.DataFrame, methods: list = None) -> pd.DataFrame
         methods = ['zscore', 'iqr', 'percentile']
 
     result_df = freq_df.copy()
+
+    # Filter out 'No Equipment' category if requested
+    if exclude_no_equipment and 'equipment_primary_category' in result_df.columns:
+        no_equip_mask = result_df['equipment_primary_category'] == 'No Equipment'
+        no_equip_count = no_equip_mask.sum()
+        if no_equip_count > 0:
+            logger.info(
+                f"Excluding {no_equip_count} 'No Equipment' records from outlier detection"
+            )
+            result_df = result_df[~no_equip_mask]
 
     logger.info(f"Running outlier detection with methods: {methods}")
 

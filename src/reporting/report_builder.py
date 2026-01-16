@@ -66,20 +66,25 @@ class ReportBuilder:
 
     def _load_data(self) -> pd.DataFrame:
         """
-        Load work order data from input file.
+        Load and prepare work order data from input file.
 
         Returns:
-            DataFrame with loaded work order data
+            DataFrame with cleaned and categorized work order data
 
         Raises:
             FileNotFoundError: If input file does not exist
             ValueError: If file format is not supported
         """
-        # Import data loader from pipeline
+        # Import pipeline steps to ensure required derived fields are present
         from src.pipeline.data_loader import load_work_orders
+        from src.pipeline.data_cleaner import clean_work_orders
+        from src.pipeline.categorizer import categorize_work_orders
 
-        # Load data using existing pipeline
-        self.df = load_work_orders(self.input_file)
+        df = load_work_orders(self.input_file)
+        df = clean_work_orders(df)
+        df = categorize_work_orders(df)
+
+        self.df = df
         return self.df
 
     def _calculate_metadata(self, df: pd.DataFrame) -> Dict[str, Any]:
@@ -103,17 +108,25 @@ class ReportBuilder:
             'total_records': len(df)
         }
 
-        # Calculate date range
-        if 'Complete_Date' in df.columns:
-            valid_dates = df['Complete_Date'].dropna()
-            if len(valid_dates) > 0:
-                metadata['data_period_start'] = valid_dates.min().strftime('%Y-%m-%d')
-                metadata['data_period_end'] = valid_dates.max().strftime('%Y-%m-%d')
-                metadata['date_range_days'] = (valid_dates.max() - valid_dates.min()).days
-            else:
-                metadata['data_period_start'] = 'N/A'
-                metadata['data_period_end'] = 'N/A'
-                metadata['date_range_days'] = 0
+        # Calculate date range - prefer create_date_yyyymmdd (when repair was requested)
+        valid_dates = None
+        date_col = None
+
+        for col in ['create_date_yyyymmdd', 'Create_Date', 'Complete_Date']:
+            if col in df.columns:
+                valid_dates = df[col].dropna()
+                if len(valid_dates) > 0:
+                    date_col = col
+                    break
+
+        if valid_dates is not None and len(valid_dates) > 0:
+            min_date = valid_dates.min()
+            max_date = valid_dates.max()
+            metadata['data_period_start'] = min_date.strftime('%Y-%m-%d')
+            metadata['data_period_end'] = max_date.strftime('%Y-%m-%d')
+            # Calculate days, ensuring at least 1 day if dates exist
+            days_diff = (max_date - min_date).days
+            metadata['date_range_days'] = max(1, days_diff)  # At least 1 day if we have data
         else:
             metadata['data_period_start'] = 'N/A'
             metadata['data_period_end'] = 'N/A'

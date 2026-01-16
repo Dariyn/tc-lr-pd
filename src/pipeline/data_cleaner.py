@@ -15,6 +15,30 @@ import numpy as np
 import pandas as pd
 
 
+# No-equipment markers - these indicate work orders without specific equipment
+# (e.g., interior fixes, general maintenance)
+# Includes both Traditional (無設備) and Simplified (无设备) Chinese
+NO_EQUIPMENT_MARKERS = ['無設備', '无设备', 'no device', 'no equipment']
+
+
+def is_no_equipment(value) -> bool:
+    """
+    Check if a value indicates no equipment is involved.
+
+    Args:
+        value: EquipmentName value to check
+
+    Returns:
+        True if the value indicates no equipment (null, empty, or marker)
+    """
+    if pd.isna(value):
+        return True
+    str_value = str(value).strip()
+    if str_value == '':
+        return True
+    return str_value.lower() in NO_EQUIPMENT_MARKERS
+
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -28,25 +52,54 @@ def clean_equipment_data(df: pd.DataFrame) -> pd.DataFrame:
     Clean equipment identification fields.
 
     Processing steps:
-    1. Drop rows where both Equipment_ID and EquipmentName are null
-       (cannot analyze without equipment identifier)
-    2. For rows with Equipment_ID but missing EquipmentName, set
+    1. Detect and flag "no equipment" records (無設備, No Device, etc.)
+       - These are interior fixes/general maintenance without specific equipment
+       - Keep these records with standardized name and synthetic ID
+    2. Drop rows where both Equipment_ID and EquipmentName are null/empty
+       AND not flagged as no-equipment
+    3. For rows with Equipment_ID but missing EquipmentName, set
        EquipmentName = f"Unknown Equipment {Equipment_ID}"
-    3. For rows with EquipmentName but missing Equipment_ID, create
+    4. For rows with EquipmentName but missing Equipment_ID, create
        synthetic ID from name hash
-    4. Standardize EquipmentName: strip whitespace, title case
+    5. Standardize EquipmentName: strip whitespace, title case
 
     Args:
         df: DataFrame with Equipment_ID and EquipmentName columns
 
     Returns:
-        Cleaned DataFrame with consistent equipment identifiers
+        Cleaned DataFrame with:
+        - is_no_equipment (bool): True for interior/non-equipment work
+        - Consistent equipment identifiers
     """
     initial_count = len(df)
 
-    # Drop rows where both Equipment_ID and EquipmentName are null
-    df = df[~(df['Equipment_ID'].isna() & df['EquipmentName'].isna())]
-    dropped_count = initial_count - len(df)
+    # Step 1: Detect "no equipment" records BEFORE any filtering
+    df['is_no_equipment'] = df['EquipmentName'].apply(is_no_equipment)
+    no_equipment_count = df['is_no_equipment'].sum()
+    logger.info(
+        f"Detected {no_equipment_count} 'no equipment' records "
+        f"(interior fixes, general maintenance)"
+    )
+
+    # Step 2: Standardize no-equipment records
+    # Set consistent EquipmentName and create synthetic ID
+    no_equip_mask = df['is_no_equipment']
+    if no_equip_mask.any():
+        # Convert Equipment_ID to object type to allow string assignment
+        df['Equipment_ID'] = df['Equipment_ID'].astype('object')
+        # Use a fixed synthetic ID for all no-equipment records
+        df.loc[no_equip_mask, 'Equipment_ID'] = 'NO_EQUIPMENT'
+        df.loc[no_equip_mask, 'EquipmentName'] = 'No Equipment'
+
+    # Step 3: Drop rows where both Equipment_ID and EquipmentName are null
+    # BUT only for records NOT flagged as no-equipment (those are already handled)
+    drop_mask = (
+        df['Equipment_ID'].isna() &
+        df['EquipmentName'].isna() &
+        ~df['is_no_equipment']
+    )
+    df = df[~drop_mask]
+    dropped_count = drop_mask.sum()
 
     if dropped_count > 0:
         logger.warning(
@@ -54,8 +107,12 @@ def clean_equipment_data(df: pd.DataFrame) -> pd.DataFrame:
             f"(both Equipment_ID and EquipmentName null)"
         )
 
-    # For rows with Equipment_ID but missing EquipmentName
-    mask_id_no_name = df['Equipment_ID'].notna() & df['EquipmentName'].isna()
+    # Step 4: For rows with Equipment_ID but missing EquipmentName
+    mask_id_no_name = (
+        df['Equipment_ID'].notna() &
+        df['EquipmentName'].isna() &
+        ~df['is_no_equipment']
+    )
     if mask_id_no_name.any():
         df.loc[mask_id_no_name, 'EquipmentName'] = (
             df.loc[mask_id_no_name, 'Equipment_ID'].apply(
@@ -67,8 +124,12 @@ def clean_equipment_data(df: pd.DataFrame) -> pd.DataFrame:
             f"with Equipment_ID but missing name"
         )
 
-    # For rows with EquipmentName but missing Equipment_ID
-    mask_name_no_id = df['EquipmentName'].notna() & df['Equipment_ID'].isna()
+    # Step 5: For rows with EquipmentName but missing Equipment_ID
+    mask_name_no_id = (
+        df['EquipmentName'].notna() &
+        df['Equipment_ID'].isna() &
+        ~df['is_no_equipment']
+    )
     if mask_name_no_id.any():
         # Convert Equipment_ID to string type to avoid dtype warnings
         df['Equipment_ID'] = df['Equipment_ID'].astype('object')
@@ -82,8 +143,12 @@ def clean_equipment_data(df: pd.DataFrame) -> pd.DataFrame:
             f"with EquipmentName but missing ID"
         )
 
-    # Standardize EquipmentName: strip whitespace, title case
-    df['EquipmentName'] = df['EquipmentName'].str.strip().str.title()
+    # Step 6: Standardize EquipmentName: strip whitespace, title case
+    # (skip no-equipment records as they already have standardized name)
+    non_no_equip_mask = ~df['is_no_equipment']
+    df.loc[non_no_equip_mask, 'EquipmentName'] = (
+        df.loc[non_no_equip_mask, 'EquipmentName'].str.strip().str.title()
+    )
     logger.info("Standardized EquipmentName format (title case)")
 
     return df
@@ -254,12 +319,14 @@ def clean_work_orders(df: pd.DataFrame) -> pd.DataFrame:
     rows_dropped = initial_count - final_count
 
     # Log cleaning summary
+    no_equipment_count = df_clean['is_no_equipment'].sum()
     logger.info("=" * 60)
     logger.info("Data Cleaning Summary")
     logger.info("=" * 60)
     logger.info(f"Initial rows:          {initial_count:>10,}")
     logger.info(f"Final rows:            {final_count:>10,}")
     logger.info(f"Rows dropped:          {rows_dropped:>10,} ({rows_dropped/initial_count*100:.1f}%)")
+    logger.info(f"No-equipment records:  {no_equipment_count:>10,} ({no_equipment_count/final_count*100:.1f}%)")
     logger.info(f"Cost outliers flagged: {df_clean['cost_outlier'].sum():>10,}")
     logger.info(f"Duration outliers:     {df_clean['duration_outlier'].sum():>10,}")
     logger.info("=" * 60)

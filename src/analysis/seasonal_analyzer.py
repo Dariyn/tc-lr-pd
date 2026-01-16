@@ -4,6 +4,9 @@ Seasonal cost analysis for work orders.
 This module provides tools to analyze seasonal patterns in work order costs,
 identifying trends across months, quarters, and seasons to inform budget planning
 and preventive maintenance scheduling.
+
+Uses Create_Date (when repair was requested) to capture when equipment failures
+actually occur, rather than Complete_Date (when work was finished).
 """
 
 import pandas as pd
@@ -16,6 +19,8 @@ class SeasonalAnalyzer:
 
     Provides methods to aggregate costs by time periods (monthly, quarterly, seasonal)
     and identify patterns such as recurring high-cost periods.
+
+    Uses Create_Date by default to analyze when failures occur, not when they're fixed.
     """
 
     # Season mapping: month number to season name
@@ -26,15 +31,36 @@ class SeasonalAnalyzer:
         9: 'Fall', 10: 'Fall', 11: 'Fall'
     }
 
+    def _get_date_column(self, df: pd.DataFrame) -> str:
+        """
+        Determine which date column to use for analysis.
+
+        Prefers create_date_yyyymmdd (when failure occurred) over Complete_Date.
+
+        Args:
+            df: DataFrame with date columns
+
+        Returns:
+            Name of the date column to use
+        """
+        # Prefer create_date_yyyymmdd as it shows when the failure actually occurred
+        if 'create_date_yyyymmdd' in df.columns and df['create_date_yyyymmdd'].notna().any():
+            return 'create_date_yyyymmdd'
+        elif 'Create_Date' in df.columns and df['Create_Date'].notna().any():
+            return 'Create_Date'
+        elif 'Complete_Date' in df.columns and df['Complete_Date'].notna().any():
+            return 'Complete_Date'
+        return None
+
     def calculate_monthly_costs(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Aggregate work order costs by month.
 
-        Groups work orders by completion month and calculates total costs,
-        average costs, and work order counts for each month.
+        Groups work orders by creation month (when repair was requested) and
+        calculates total costs, average costs, and work order counts for each month.
 
         Args:
-            df: DataFrame with 'Complete_Date' and 'PO_AMOUNT' columns
+            df: DataFrame with 'Create_Date' (or 'Complete_Date') and 'PO_AMOUNT' columns
 
         Returns:
             DataFrame with columns:
@@ -53,15 +79,20 @@ class SeasonalAnalyzer:
         if df.empty:
             return pd.DataFrame(columns=['period', 'total_cost', 'avg_cost', 'work_order_count'])
 
+        # Determine which date column to use
+        date_col = self._get_date_column(df)
+        if date_col is None:
+            return pd.DataFrame(columns=['period', 'total_cost', 'avg_cost', 'work_order_count'])
+
         # Filter to valid dates and costs
-        valid_df = df[df['Complete_Date'].notna() & df['PO_AMOUNT'].notna()].copy()
+        valid_df = df[df[date_col].notna() & df['PO_AMOUNT'].notna()].copy()
 
         if valid_df.empty:
             return pd.DataFrame(columns=['period', 'total_cost', 'avg_cost', 'work_order_count'])
 
         # Extract month and month name
-        valid_df['month'] = valid_df['Complete_Date'].dt.month
-        valid_df['month_name'] = valid_df['Complete_Date'].dt.month_name()
+        valid_df['month'] = valid_df[date_col].dt.month
+        valid_df['month_name'] = valid_df[date_col].dt.month_name()
 
         # Group by month
         monthly = valid_df.groupby(['month', 'month_name']).agg(
@@ -69,6 +100,9 @@ class SeasonalAnalyzer:
             avg_cost=('PO_AMOUNT', 'mean'),
             work_order_count=('PO_AMOUNT', 'count')
         ).reset_index()
+
+        # Sort by month number for proper ordering
+        monthly = monthly.sort_values('month')
 
         # Rename month_name to period and drop month number
         monthly = monthly.rename(columns={'month_name': 'period'})
@@ -80,11 +114,11 @@ class SeasonalAnalyzer:
         """
         Aggregate work order costs by quarter.
 
-        Groups work orders by completion quarter (Q1-Q4) and calculates total costs,
+        Groups work orders by creation quarter (Q1-Q4) and calculates total costs,
         average costs, and work order counts for each quarter.
 
         Args:
-            df: DataFrame with 'Complete_Date' and 'PO_AMOUNT' columns
+            df: DataFrame with 'Create_Date' (or 'Complete_Date') and 'PO_AMOUNT' columns
 
         Returns:
             DataFrame with columns:
@@ -103,14 +137,19 @@ class SeasonalAnalyzer:
         if df.empty:
             return pd.DataFrame(columns=['period', 'total_cost', 'avg_cost', 'work_order_count'])
 
+        # Determine which date column to use
+        date_col = self._get_date_column(df)
+        if date_col is None:
+            return pd.DataFrame(columns=['period', 'total_cost', 'avg_cost', 'work_order_count'])
+
         # Filter to valid dates and costs
-        valid_df = df[df['Complete_Date'].notna() & df['PO_AMOUNT'].notna()].copy()
+        valid_df = df[df[date_col].notna() & df['PO_AMOUNT'].notna()].copy()
 
         if valid_df.empty:
             return pd.DataFrame(columns=['period', 'total_cost', 'avg_cost', 'work_order_count'])
 
         # Extract quarter
-        valid_df['quarter'] = valid_df['Complete_Date'].dt.quarter
+        valid_df['quarter'] = valid_df[date_col].dt.quarter
         valid_df['quarter_name'] = 'Q' + valid_df['quarter'].astype(str)
 
         # Group by quarter
@@ -119,6 +158,9 @@ class SeasonalAnalyzer:
             avg_cost=('PO_AMOUNT', 'mean'),
             work_order_count=('PO_AMOUNT', 'count')
         ).reset_index()
+
+        # Sort by quarter number
+        quarterly = quarterly.sort_values('quarter')
 
         # Rename quarter_name to period and drop quarter number
         quarterly = quarterly.rename(columns={'quarter_name': 'period'})
@@ -131,7 +173,7 @@ class SeasonalAnalyzer:
         Aggregate work order costs by season.
 
         Groups work orders by meteorological season (Winter/Spring/Summer/Fall)
-        and calculates total costs, average costs, and work order counts.
+        based on when the repair was requested (Create_Date).
 
         Season mapping:
             - Winter: December, January, February
@@ -140,7 +182,7 @@ class SeasonalAnalyzer:
             - Fall: September, October, November
 
         Args:
-            df: DataFrame with 'Complete_Date' and 'PO_AMOUNT' columns
+            df: DataFrame with 'Create_Date' (or 'Complete_Date') and 'PO_AMOUNT' columns
 
         Returns:
             DataFrame with columns:
@@ -159,14 +201,19 @@ class SeasonalAnalyzer:
         if df.empty:
             return pd.DataFrame(columns=['period', 'total_cost', 'avg_cost', 'work_order_count'])
 
+        # Determine which date column to use
+        date_col = self._get_date_column(df)
+        if date_col is None:
+            return pd.DataFrame(columns=['period', 'total_cost', 'avg_cost', 'work_order_count'])
+
         # Filter to valid dates and costs
-        valid_df = df[df['Complete_Date'].notna() & df['PO_AMOUNT'].notna()].copy()
+        valid_df = df[df[date_col].notna() & df['PO_AMOUNT'].notna()].copy()
 
         if valid_df.empty:
             return pd.DataFrame(columns=['period', 'total_cost', 'avg_cost', 'work_order_count'])
 
         # Map month to season
-        valid_df['month'] = valid_df['Complete_Date'].dt.month
+        valid_df['month'] = valid_df[date_col].dt.month
         valid_df['season'] = valid_df['month'].map(self.SEASON_MAP)
 
         # Group by season

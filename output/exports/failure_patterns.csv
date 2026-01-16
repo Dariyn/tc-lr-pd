@@ -1,0 +1,24 @@
+pattern,frequency,total_cost,equipment_count,category
+repair 修理,818,2118.0,23,other
+replace 更換,523,10320.9,22,other
+tear 損耗,564,8020.17,18,other
+malfunction 故障,394,5470.5,21,malfunction
+shopping centre,190,4965.51,14,other
+equipment 設備,172,3248.0,14,other
+loosen 損壞/鬆脫,472,2340.81,5,other
+damaged 損壞,260,1181.73,8,broken
+vandalism 人為破壞,163,1132.59,9,other
+replacement work,120,1953.4,8,other
+cleaning 清洗,69,840.0,8,other
+water pipe,126,1702.92,3,other
+fire services緊急事故,87,725.34,2,other
+water seepage,91,934.64,1,other
+pipe clogged,79,840.0,1,clog
+clogged 喉管阻塞,79,840.0,1,clog
+water pipe clogged,79,840.0,1,clog
+pipe clogged 喉管阻塞,79,840.0,1,clog
+overflow 溢滿,79,840.0,1,other
+reset 重設,17,1390.0,6,other
+control fault,45,218.35,7,other
+resume normal,15,537.0,2,other
+tmc follow,12,153.3,3,other

@@ -17,7 +17,7 @@ from src.pipeline.pipeline import run_pipeline
 # Analysis modules
 from src.analysis.frequency_analyzer import calculate_equipment_frequencies
 from src.analysis.outlier_detector import detect_outliers
-from src.analysis.equipment_ranker import rank_equipment, identify_thresholds
+from src.analysis.equipment_ranker import rank_equipment, rank_all_equipment, identify_thresholds
 from src.analysis.seasonal_analyzer import SeasonalAnalyzer
 from src.analysis.vendor_analyzer import VendorAnalyzer
 from src.analysis.failure_pattern_analyzer import FailurePatternAnalyzer
@@ -146,14 +146,18 @@ class PipelineOrchestrator:
 
             # Consolidate results
             results = {
-                'equipment_df': equipment_results['equipment_df'],
+                'equipment_df': equipment_results['equipment_df'],  # Outliers only
+                'all_equipment_df': equipment_results.get('all_equipment_df', pd.DataFrame()),  # All equipment
                 'seasonal_dict': seasonal_results,
                 'vendor_df': vendor_results['vendor_df'],
                 'patterns_list': failure_results['patterns_list'],
                 'quality_report': quality_report,
                 'thresholds': equipment_results.get('thresholds', {}),
-                'category_stats': equipment_results.get('category_stats', pd.DataFrame())
+                'category_stats': equipment_results.get('category_stats', pd.DataFrame()),
+                'no_equipment_summary': equipment_results.get('no_equipment_summary', {})
             }
+            if 'vendor_df_no_equipment' in vendor_results:
+                results['vendor_df_no_equipment'] = vendor_results['vendor_df_no_equipment']
 
             logger.info("\n" + "=" * 60)
             logger.info("FULL ANALYSIS PIPELINE COMPLETE")
@@ -178,20 +182,31 @@ class PipelineOrchestrator:
         """
         Run equipment frequency, outlier detection, and ranking.
 
+        Separates analysis into two tracks:
+        - Equipment-based: Frequency, outlier, ranking analysis (excludes 'No Equipment')
+        - No-equipment: Summary statistics for interior/general maintenance work
+
         Args:
             df: Cleaned and categorized work order DataFrame
 
         Returns:
-            Dict with equipment_df, thresholds, and category_stats
+            Dict with equipment_df, thresholds, category_stats, and no_equipment_summary
         """
-        # Calculate frequencies
-        freq_df = calculate_equipment_frequencies(df)
+        # Separate no-equipment records for summary
+        no_equipment_summary = self._calculate_no_equipment_summary(df)
 
-        # Detect outliers
-        outliers_df = detect_outliers(freq_df)
+        # Calculate frequencies (excludes 'No Equipment' by default)
+        freq_df = calculate_equipment_frequencies(df, exclude_no_equipment=True)
 
-        # Rank equipment
-        ranked_df = rank_equipment(outliers_df)
+        # Rank ALL equipment by priority (for comprehensive view)
+        all_equipment_df = rank_all_equipment(freq_df, exclude_no_equipment=True)
+        logger.info(f"Ranked {len(all_equipment_df)} equipment items by priority")
+
+        # Detect outliers (excludes 'No Equipment' by default)
+        outliers_df = detect_outliers(freq_df, exclude_no_equipment=True)
+
+        # Rank equipment - outliers only (excludes 'No Equipment' by default)
+        ranked_df = rank_equipment(outliers_df, exclude_no_equipment=True)
 
         # Get thresholds (only if we have outliers)
         if len(ranked_df) > 0:
@@ -201,10 +216,62 @@ class PipelineOrchestrator:
             logger.warning("No consensus outliers found - skipping threshold calculation")
 
         return {
-            'equipment_df': ranked_df,
+            'equipment_df': ranked_df,  # Outliers only
+            'all_equipment_df': all_equipment_df,  # All equipment ranked
             'thresholds': thresholds,
-            'category_stats': freq_df  # Full frequency data as category stats
+            'category_stats': freq_df,
+            'no_equipment_summary': no_equipment_summary
         }
+
+    def _calculate_no_equipment_summary(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        Calculate summary statistics for 'No Equipment' records.
+
+        These are interior fixes and general maintenance work orders
+        that don't have specific equipment associated.
+
+        Args:
+            df: Full work order DataFrame
+
+        Returns:
+            Dict with no-equipment summary statistics
+        """
+        # Check if is_no_equipment column exists
+        if 'is_no_equipment' not in df.columns:
+            return {'count': 0, 'percentage': 0.0}
+
+        no_equip_df = df[df['is_no_equipment']]
+        total_count = len(df)
+        no_equip_count = len(no_equip_df)
+
+        if no_equip_count == 0:
+            return {'count': 0, 'percentage': 0.0}
+
+        # Calculate summary statistics
+        summary = {
+            'count': no_equip_count,
+            'percentage': (no_equip_count / total_count * 100) if total_count > 0 else 0,
+            'total_cost': no_equip_df['PO_AMOUNT'].sum() if 'PO_AMOUNT' in no_equip_df.columns else 0,
+            'avg_cost': no_equip_df['PO_AMOUNT'].mean() if 'PO_AMOUNT' in no_equip_df.columns else 0,
+        }
+
+        # Property distribution (top 10)
+        if 'Property' in no_equip_df.columns:
+            property_counts = no_equip_df['Property'].value_counts().head(10)
+            summary['top_properties'] = property_counts.to_dict()
+
+        # Work type distribution
+        if 'FM_Type' in no_equip_df.columns:
+            fm_type_counts = no_equip_df['FM_Type'].value_counts().head(10)
+            summary['work_types'] = fm_type_counts.to_dict()
+
+        logger.info(
+            f"No-equipment summary: {no_equip_count} records "
+            f"({summary['percentage']:.1f}%), "
+            f"total cost: ${summary['total_cost']:,.0f}"
+        )
+
+        return summary
 
     def _run_seasonal_analysis(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
@@ -263,29 +330,43 @@ class PipelineOrchestrator:
             df: Cleaned work order DataFrame
 
         Returns:
-            Dict with vendor_df and recommendation count
+            Dict with vendor_df and recommendation count.
+            Includes vendor_df_no_equipment when no-equipment rows can be excluded.
         """
         analyzer = VendorAnalyzer(min_work_orders=3)
 
         try:
             # Calculate vendor costs
             vendor_costs = analyzer.calculate_vendor_costs(df, include_unknown=False)
+            vendor_costs_no_equipment = None
+            if 'is_no_equipment' in df.columns:
+                df_vendor = df[~df['is_no_equipment']].copy()
+                vendor_costs_no_equipment = analyzer.calculate_vendor_costs(
+                    df_vendor,
+                    include_unknown=False
+                )
 
             # Handle edge case: no vendor data
             if len(vendor_costs) == 0:
                 logger.warning("No vendor data available for analysis")
-                return {
+                results = {
                     'vendor_df': pd.DataFrame(),
                     'recommendations': []
                 }
+                if vendor_costs_no_equipment is not None:
+                    results['vendor_df_no_equipment'] = vendor_costs_no_equipment
+                return results
 
             # Get recommendations
             recommendations = analyzer.get_vendor_recommendations(df, include_unknown=False)
 
-            return {
+            results = {
                 'vendor_df': vendor_costs,
                 'recommendations': recommendations
             }
+            if vendor_costs_no_equipment is not None:
+                results['vendor_df_no_equipment'] = vendor_costs_no_equipment
+            return results
 
         except Exception as e:
             logger.warning(f"Vendor analysis failed: {str(e)} - continuing with empty results")
@@ -378,7 +459,7 @@ class PipelineOrchestrator:
             logger.info("\n[3/3] Generating Excel report...")
             excel_path = self.output_dir / 'reports' / 'work_order_analysis.xlsx'
             excel_generator = ExcelReportGenerator()
-            excel_generator.generate_report(report, str(excel_path))
+            excel_generator.generate_excel(report, str(excel_path))
             logger.info(f"✓ Excel report saved: {excel_path}")
 
             logger.info("\n" + "=" * 60)
@@ -427,18 +508,28 @@ class PipelineOrchestrator:
         json_files = []
 
         try:
-            # Export equipment rankings
-            logger.info("\n[1/4] Exporting equipment rankings...")
+            # Export equipment rankings (outliers only)
+            logger.info("\n[1/5] Exporting equipment outliers...")
             equipment_csv = self.output_dir / 'exports' / 'equipment_rankings.csv'
             equipment_json = self.output_dir / 'exports' / 'equipment_rankings.json'
             exporter.export_equipment_rankings(analysis_results['equipment_df'], equipment_csv)
             exporter.export_equipment_rankings_json(analysis_results['equipment_df'], equipment_json)
             csv_files.append(str(equipment_csv))
             json_files.append(str(equipment_json))
-            logger.info(f"✓ Equipment rankings exported")
+            logger.info(f"✓ Equipment outliers exported")
+
+            # Export all equipment rankings
+            logger.info("\n[2/5] Exporting all equipment rankings...")
+            all_equipment_csv = self.output_dir / 'exports' / 'all_equipment_rankings.csv'
+            all_equipment_json = self.output_dir / 'exports' / 'all_equipment_rankings.json'
+            exporter.export_equipment_rankings(analysis_results['all_equipment_df'], all_equipment_csv)
+            exporter.export_equipment_rankings_json(analysis_results['all_equipment_df'], all_equipment_json)
+            csv_files.append(str(all_equipment_csv))
+            json_files.append(str(all_equipment_json))
+            logger.info(f"✓ All equipment rankings exported")
 
             # Export seasonal patterns
-            logger.info("\n[2/4] Exporting seasonal patterns...")
+            logger.info("\n[3/5] Exporting seasonal patterns...")
             seasonal_csv = self.output_dir / 'exports' / 'seasonal_patterns.csv'
             seasonal_json = self.output_dir / 'exports' / 'seasonal_patterns.json'
             exporter.export_seasonal_patterns(analysis_results['seasonal_dict'], seasonal_csv)
@@ -448,7 +539,7 @@ class PipelineOrchestrator:
             logger.info(f"✓ Seasonal patterns exported")
 
             # Export vendor metrics
-            logger.info("\n[3/4] Exporting vendor metrics...")
+            logger.info("\n[4/5] Exporting vendor metrics...")
             vendor_csv = self.output_dir / 'exports' / 'vendor_metrics.csv'
             vendor_json = self.output_dir / 'exports' / 'vendor_metrics.json'
             exporter.export_vendor_metrics(analysis_results['vendor_df'], vendor_csv)
@@ -458,7 +549,7 @@ class PipelineOrchestrator:
             logger.info(f"✓ Vendor metrics exported")
 
             # Export failure patterns
-            logger.info("\n[4/4] Exporting failure patterns...")
+            logger.info("\n[5/5] Exporting failure patterns...")
             failure_csv = self.output_dir / 'exports' / 'failure_patterns.csv'
             failure_json = self.output_dir / 'exports' / 'failure_patterns.json'
             exporter.export_failure_patterns(analysis_results['patterns_list'], failure_csv)
@@ -488,7 +579,7 @@ class PipelineOrchestrator:
 
         Creates:
         - Static charts: equipment_ranking.png, seasonal_costs.png,
-          vendor_costs.png, failure_patterns.png
+          vendor_costs.png, vendor_costs_scaled.png, failure_patterns.png
         - Interactive dashboard: dashboard.html with all 4 chart types
 
         Args:
@@ -516,39 +607,72 @@ class PipelineOrchestrator:
             dashboard_gen = DashboardGenerator()
 
             # Generate static charts
-            logger.info("\n[1/5] Generating equipment ranking chart...")
+            logger.info("\n[1/7] Generating equipment outliers chart...")
             equipment_chart = self.output_dir / 'visualizations' / 'equipment_ranking.png'
             chart_gen.create_equipment_ranking_chart(
                 analysis_results['equipment_df'],
                 equipment_chart,
-                top_n=10,
+                top_n=5,
                 format='png'
             )
             chart_files.append(str(equipment_chart))
-            logger.info(f"✓ Equipment chart saved: {equipment_chart}")
+            logger.info(f"✓ Equipment outliers chart saved: {equipment_chart}")
 
-            logger.info("\n[2/5] Generating seasonal trend chart...")
+            logger.info("\n[2/7] Generating all equipment ranking chart...")
+            all_equipment_chart = self.output_dir / 'visualizations' / 'all_equipment_ranking.png'
+            chart_gen.create_equipment_ranking_chart(
+                analysis_results['all_equipment_df'],
+                all_equipment_chart,
+                top_n=10,
+                format='png'
+            )
+            chart_files.append(str(all_equipment_chart))
+            logger.info(f"✓ All equipment chart saved: {all_equipment_chart}")
+
+            logger.info("\n[3/7] Generating seasonal trend chart...")
             seasonal_chart = self.output_dir / 'visualizations' / 'seasonal_costs.png'
+            seasonal_data = {
+                'monthly': analysis_results['seasonal_dict'].get('monthly_costs', pd.DataFrame())
+            }
             chart_gen.create_seasonal_trend_chart(
-                analysis_results['seasonal_dict'].get('monthly_costs', pd.DataFrame()),
+                seasonal_data,
                 seasonal_chart,
                 format='png'
             )
             chart_files.append(str(seasonal_chart))
             logger.info(f"✓ Seasonal chart saved: {seasonal_chart}")
 
-            logger.info("\n[3/5] Generating vendor performance chart...")
+            logger.info("\n[4/7] Generating vendor performance chart...")
             vendor_chart = self.output_dir / 'visualizations' / 'vendor_costs.png'
+            vendor_df_for_chart = analysis_results.get(
+                'vendor_df_no_equipment',
+                analysis_results['vendor_df']
+            )
+            vendor_title_note = None
+            if 'vendor_df_no_equipment' in analysis_results:
+                vendor_title_note = 'No Equipment excluded'
             chart_gen.create_vendor_performance_chart(
-                analysis_results['vendor_df'],
+                vendor_df_for_chart,
                 vendor_chart,
                 top_n=10,
-                format='png'
+                format='png',
+                title_note=vendor_title_note
             )
             chart_files.append(str(vendor_chart))
             logger.info(f"✓ Vendor chart saved: {vendor_chart}")
 
-            logger.info("\n[4/5] Generating failure pattern chart...")
+            logger.info("\n[5/7] Generating vendor scaled cost chart...")
+            vendor_scaled_chart = self.output_dir / 'visualizations' / 'vendor_costs_scaled.png'
+            chart_gen.create_vendor_costs_scaled_chart(
+                analysis_results['vendor_df'],
+                vendor_scaled_chart,
+                top_n=10,
+                format='png'
+            )
+            chart_files.append(str(vendor_scaled_chart))
+            logger.info(f"Vendor scaled chart saved: {vendor_scaled_chart}")
+
+            logger.info("\n[6/7] Generating failure pattern chart...")
             failure_chart = self.output_dir / 'visualizations' / 'failure_patterns.png'
             # Convert patterns list to DataFrame if needed
             if analysis_results['patterns_list']:
@@ -565,7 +689,7 @@ class PipelineOrchestrator:
             logger.info(f"✓ Failure patterns chart saved: {failure_chart}")
 
             # Generate interactive dashboard
-            logger.info("\n[5/5] Generating interactive dashboard...")
+            logger.info("\n[7/7] Generating interactive dashboard...")
             dashboard_path = self.output_dir / 'visualizations' / 'dashboard.html'
             dashboard_gen.create_dashboard(
                 equipment_df=analysis_results['equipment_df'],

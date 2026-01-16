@@ -46,6 +46,27 @@ class DashboardGenerator:
             }
         }
 
+    @staticmethod
+    def _format_equipment_name(value) -> str:
+        """
+        Format equipment name/ID to avoid scientific notation.
+
+        Args:
+            value: Equipment name or ID (could be string, int, or float)
+
+        Returns:
+            Properly formatted string representation
+        """
+        if pd.isna(value):
+            return "Unknown Equipment"
+        if isinstance(value, float):
+            # Convert to int if it's a whole number to avoid scientific notation
+            if value == int(value):
+                return str(int(value))
+            else:
+                return f"{value:.0f}"
+        return str(value)
+
     def _create_equipment_chart(
         self,
         df: pd.DataFrame,
@@ -88,11 +109,11 @@ class DashboardGenerator:
         # Reverse order for top-to-bottom display
         df_plot = df_plot.iloc[::-1]
 
-        # Get equipment names (use Equipment_Name or Equipment_ID)
+        # Get equipment names (use Equipment_Name or Equipment_ID) - format to avoid scientific notation
         if 'Equipment_Name' in df_plot.columns:
-            names = df_plot['Equipment_Name']
+            names = df_plot['Equipment_Name'].apply(self._format_equipment_name)
         elif 'Equipment_ID' in df_plot.columns:
-            names = df_plot['Equipment_ID']
+            names = df_plot['Equipment_ID'].apply(self._format_equipment_name)
         else:
             names = [f"Equipment {i+1}" for i in range(len(df_plot))]
 
@@ -125,7 +146,9 @@ class DashboardGenerator:
                 for _, row in df_cat.iterrows():
                     parts = []
                     if 'Equipment_Name' in row.index or 'Equipment_ID' in row.index:
-                        equip_id = row.get('Equipment_Name', row.get('Equipment_ID', 'N/A'))
+                        equip_id = self._format_equipment_name(
+                            row.get('Equipment_Name', row.get('Equipment_ID', 'N/A'))
+                        )
                         parts.append(f"<b>{equip_id}</b>")
                     parts.append(f"Category: {row.get(category_col, 'N/A')}")
                     if 'work_order_count' in row.index:
@@ -137,11 +160,11 @@ class DashboardGenerator:
                     parts.append(f"Priority Score: {row['priority_score']:.2f}")
                     hover_text.append("<br>".join(parts))
 
-                # Get names for this category
+                # Get names for this category - format to avoid scientific notation
                 if 'Equipment_Name' in df_cat.columns:
-                    cat_names = df_cat['Equipment_Name']
+                    cat_names = df_cat['Equipment_Name'].apply(self._format_equipment_name)
                 elif 'Equipment_ID' in df_cat.columns:
-                    cat_names = df_cat['Equipment_ID']
+                    cat_names = df_cat['Equipment_ID'].apply(self._format_equipment_name)
                 else:
                     cat_names = [f"Equipment {i}" for i in range(len(df_cat))]
 
@@ -160,7 +183,9 @@ class DashboardGenerator:
             for _, row in df_plot.iterrows():
                 parts = []
                 if 'Equipment_Name' in row.index or 'Equipment_ID' in row.index:
-                    equip_id = row.get('Equipment_Name', row.get('Equipment_ID', 'N/A'))
+                    equip_id = self._format_equipment_name(
+                        row.get('Equipment_Name', row.get('Equipment_ID', 'N/A'))
+                    )
                     parts.append(f"<b>{equip_id}</b>")
                 if 'work_order_count' in row.index:
                     parts.append(f"Work Orders: {int(row['work_order_count'])}")
@@ -338,8 +363,7 @@ class DashboardGenerator:
             plotly Figure object with vendor comparison chart
 
         Chart features:
-        - Groups: top N vendors by total_cost
-        - Bars: total_cost, avg_cost, cost_efficiency (3 bars per vendor)
+        - Bars: Total cost (blue) and Avg cost per WO (orange)
         - Hover shows: vendor name, metric value, work_order_count, avg_duration
         - Clickable legend to toggle metrics
         """
@@ -370,9 +394,10 @@ class DashboardGenerator:
         # Get top N vendors
         df_plot = df.head(min(top_n, len(df))).copy()
 
+        # Create figure
         fig = go.Figure()
 
-        # Add total cost bars
+        # Add total cost bars (primary y-axis)
         hover_text_total = []
         for _, row in df_plot.iterrows():
             parts = [
@@ -385,16 +410,18 @@ class DashboardGenerator:
                 parts.append(f"Avg Duration: {row['avg_duration_days']:.1f} days")
             hover_text_total.append("<br>".join(parts))
 
-        fig.add_trace(go.Bar(
-            x=df_plot['contractor'],
-            y=df_plot['total_cost'],
-            name='Total Cost',
-            marker=dict(color='#1f4788'),
-            hovertext=hover_text_total,
-            hoverinfo='text'
-        ))
+        fig.add_trace(
+            go.Bar(
+                x=df_plot['contractor'],
+                y=df_plot['total_cost'],
+                name='Total Cost',
+                marker=dict(color='#1f4788'),
+                hovertext=hover_text_total,
+                hoverinfo='text'
+            )
+        )
 
-        # Add average cost bars if available
+        # Add average cost as bars if available
         if 'avg_cost_per_wo' in df_plot.columns:
             hover_text_avg = []
             for _, row in df_plot.iterrows():
@@ -406,47 +433,30 @@ class DashboardGenerator:
                     parts.append(f"Work Orders: {int(row['work_order_count'])}")
                 hover_text_avg.append("<br>".join(parts))
 
-            fig.add_trace(go.Bar(
-                x=df_plot['contractor'],
-                y=df_plot['avg_cost_per_wo'],
-                name='Avg Cost',
-                marker=dict(color='#f57c00'),
-                hovertext=hover_text_avg,
-                hoverinfo='text'
-            ))
+            fig.add_trace(
+                go.Bar(
+                    x=df_plot['contractor'],
+                    y=df_plot['avg_cost_per_wo'],
+                    name='Avg Cost/WO',
+                    marker=dict(color='#f57c00'),
+                    hovertext=hover_text_avg,
+                    hoverinfo='text'
+                )
+            )
 
-        # Add cost efficiency bars if available
-        if 'cost_per_day' in df_plot.columns:
-            hover_text_eff = []
-            for _, row in df_plot.iterrows():
-                parts = [
-                    f"<b>{row['contractor']}</b>",
-                    f"Cost Efficiency: ${row['cost_per_day']:,.2f}/day"
-                ]
-                if 'avg_duration_days' in row.index:
-                    parts.append(f"Avg Duration: {row['avg_duration_days']:.1f} days")
-                hover_text_eff.append("<br>".join(parts))
-
-            fig.add_trace(go.Bar(
-                x=df_plot['contractor'],
-                y=df_plot['cost_per_day'],
-                name='Cost Efficiency',
-                marker=dict(color='#4caf50'),
-                hovertext=hover_text_eff,
-                hoverinfo='text'
-            ))
+        # Update axes
+        fig.update_xaxes(title_text="Vendor", tickangle=-45)
+        fig.update_yaxes(title_text="Cost ($)")
 
         # Update layout
         fig.update_layout(
             title="Vendor Performance Comparison",
-            xaxis_title="Vendor",
-            yaxis_title="Cost ($)",
-            barmode='group',
             hovermode='closest',
             showlegend=True,
             height=400,
             template='plotly',
-            xaxis=dict(tickangle=-45)
+            barmode='group',
+            legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)
         )
 
         return fig
@@ -505,12 +515,21 @@ class DashboardGenerator:
         # Reverse order for top-to-bottom display
         df_plot = df_plot.iloc[::-1]
 
-        # Define category colors
+        # Define category colors - comprehensive mapping
         category_colors = {
-            'leak': '#2196f3',
-            'electrical': '#ff9800',
-            'mechanical': '#4caf50',
-            'other': '#757575'
+            'leak': '#2196f3',        # Blue
+            'electrical': '#ff9800',  # Orange
+            'mechanical': '#4caf50',  # Green
+            'clog': '#00bcd4',        # Cyan
+            'broken': '#f44336',      # Red
+            'malfunction': '#9c27b0', # Purple
+            'wear': '#795548',        # Brown
+            'vandalism': '#e91e63',   # Pink
+            'corrosion': '#607d8b',   # Blue Grey
+            'overheating': '#ff5722', # Deep Orange
+            'noise': '#8bc34a',       # Light Green
+            'vibration': '#3f51b5',   # Indigo
+            'other': '#757575',       # Gray
         }
 
         # Group by category if available
@@ -680,13 +699,14 @@ class DashboardGenerator:
             height=1200,
             showlegend=True,
             hovermode='closest',
-            template='plotly'
+            template='plotly',
+            barmode='group'
         )
 
         # Update axes labels
         fig.update_xaxes(title_text="Priority Score", row=1, col=1)
         fig.update_xaxes(title_text="Month", row=1, col=2)
-        fig.update_xaxes(title_text="Vendor", row=2, col=1)
+        fig.update_xaxes(title_text="Vendor", tickangle=-45, row=2, col=1)
         fig.update_xaxes(title_text="Impact Score", row=2, col=2)
 
         fig.update_yaxes(title_text="Equipment", row=1, col=1)

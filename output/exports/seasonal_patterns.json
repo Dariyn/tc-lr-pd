@@ -1,0 +1,51 @@
+{
+  "monthly": [
+    {
+      "period": "January",
+      "total_cost": 15754.75,
+      "avg_cost": 4.176762990455991,
+      "work_order_count": 3772
+    },
+    {
+      "period": "February",
+      "total_cost": 15445.96,
+      "avg_cost": 4.955393006095605,
+      "work_order_count": 3117
+    },
+    {
+      "period": "March",
+      "total_cost": 5045.45,
+      "avg_cost": 1.3037338501291988,
+      "work_order_count": 3870
+    },
+    {
+      "period": "April",
+      "total_cost": 11692.72,
+      "avg_cost": 2.8013224724484904,
+      "work_order_count": 4174
+    },
+    {
+      "period": "May",
+      "total_cost": 17056.81,
+      "avg_cost": 3.7971527159394483,
+      "work_order_count": 4492
+    }
+  ],
+  "quarterly": [
+    {
+      "period": "Q1",
+      "total_cost": 36246.16,
+      "avg_cost": 3.3689153267032257,
+      "work_order_count": 10759,
+      "variance_pct": 11.534041718766282
+    },
+    {
+      "period": "Q2",
+      "total_cost": 28749.53,
+      "avg_cost": 3.3175086545118853,
+      "work_order_count": 8666,
+      "variance_pct": -11.534041718766282
+    }
+  ],
+  "patterns": []
+}

@@ -1,0 +1,152 @@
+[
+  {
+    "contractor": "UNION CONTRACTORS LTD",
+    "total_cost": 13325.82,
+    "work_order_count": 238,
+    "avg_cost_per_wo": 55.990840336134454
+  },
+  {
+    "contractor": "WELL CREATION ENGINEERING LTD",
+    "total_cost": 11878.779999999999,
+    "work_order_count": 243,
+    "avg_cost_per_wo": 48.883868312757194
+  },
+  {
+    "contractor": "GUARDIAN FIRE ENGINEERS & CONSULTANTS LTD",
+    "total_cost": 6378.48,
+    "work_order_count": 160,
+    "avg_cost_per_wo": 39.8655
+  },
+  {
+    "contractor": "HANISON INTERIOR AND RENOVATION LIMITED",
+    "total_cost": 5934.83,
+    "work_order_count": 208,
+    "avg_cost_per_wo": 28.532836538461538
+  },
+  {
+    "contractor": "STANDARD REFRIGERATION AND ENG. CO LTD",
+    "total_cost": 5370.1,
+    "work_order_count": 57,
+    "avg_cost_per_wo": 94.2122807017544
+  },
+  {
+    "contractor": "SYNERGIS MANAGEMENT SERVICES LTD",
+    "total_cost": 4809.85,
+    "work_order_count": 7206,
+    "avg_cost_per_wo": 0.6674784901470997
+  },
+  {
+    "contractor": "REC ENGINEERING COMPANY LIMITED",
+    "total_cost": 4290.48,
+    "work_order_count": 151,
+    "avg_cost_per_wo": 28.413774834437085
+  },
+  {
+    "contractor": "WENDEN ENGINEERING SERVICE CO LTD",
+    "total_cost": 3167.5499999999997,
+    "work_order_count": 152,
+    "avg_cost_per_wo": 20.839144736842105
+  },
+  {
+    "contractor": "HITACHI ELEVATOR ENGINEERING CO (HK) LTD",
+    "total_cost": 2465.0,
+    "work_order_count": 66,
+    "avg_cost_per_wo": 37.34848484848485
+  },
+  {
+    "contractor": "SAVILLS PROPERTY MANAGEMENT LTD",
+    "total_cost": 1875.51,
+    "work_order_count": 7461,
+    "avg_cost_per_wo": 0.2513751507840772
+  },
+  {
+    "contractor": "CHEVALIER (HK) LTD",
+    "total_cost": 1868.0,
+    "work_order_count": 164,
+    "avg_cost_per_wo": 11.390243902439025
+  },
+  {
+    "contractor": "TJ ENGINEERING SERVICES LTD",
+    "total_cost": 998.29,
+    "work_order_count": 174,
+    "avg_cost_per_wo": 5.737298850574712
+  },
+  {
+    "contractor": "SHUN CHEONG ELECTRICAL ENG CO LTD",
+    "total_cost": 860.0,
+    "work_order_count": 58,
+    "avg_cost_per_wo": 14.827586206896552
+  },
+  {
+    "contractor": "OTIS ELEVATOR COMPANY (HK) LTD",
+    "total_cost": 678.0,
+    "work_order_count": 25,
+    "avg_cost_per_wo": 27.12
+  },
+  {
+    "contractor": "FUJITEC (HK) CO LTD",
+    "total_cost": 558.0,
+    "work_order_count": 66,
+    "avg_cost_per_wo": 8.454545454545455
+  },
+  {
+    "contractor": "MITSUBISHI ELEVATOR HK COMPANY LTD",
+    "total_cost": 537.0,
+    "work_order_count": 69,
+    "avg_cost_per_wo": 7.782608695652174
+  },
+  {
+    "contractor": "SCHINDLER LIFTS (HK) LTD",
+    "total_cost": 0.0,
+    "work_order_count": 109,
+    "avg_cost_per_wo": 0.0
+  },
+  {
+    "contractor": "SHAN ON ENGINEERING CO LTD",
+    "total_cost": 0.0,
+    "work_order_count": 15,
+    "avg_cost_per_wo": 0.0
+  },
+  {
+    "contractor": "SIGMA ELEVATOR (HK) LTD",
+    "total_cost": 0.0,
+    "work_order_count": 25,
+    "avg_cost_per_wo": 0.0
+  },
+  {
+    "contractor": "KONE ELEVATOR (HK) LTD",
+    "total_cost": 0.0,
+    "work_order_count": 54,
+    "avg_cost_per_wo": 0.0
+  },
+  {
+    "contractor": "JONES LANG LASALLE MGT. SERVICES LT",
+    "total_cost": 0.0,
+    "work_order_count": 2427,
+    "avg_cost_per_wo": 0.0
+  },
+  {
+    "contractor": "THE JARDINE ENGINEERING CORP LTD",
+    "total_cost": 0.0,
+    "work_order_count": 12,
+    "avg_cost_per_wo": 0.0
+  },
+  {
+    "contractor": "TK ELEVATOR HONG KONG LTD",
+    "total_cost": 0.0,
+    "work_order_count": 46,
+    "avg_cost_per_wo": 0.0
+  },
+  {
+    "contractor": "HONEYWELL LTD",
+    "total_cost": 0.0,
+    "work_order_count": 191,
+    "avg_cost_per_wo": 0.0
+  },
+  {
+    "contractor": "HOLAKE HONG KONG LIFTS LTD",
+    "total_cost": 0.0,
+    "work_order_count": 5,
+    "avg_cost_per_wo": 0.0
+  }
+]

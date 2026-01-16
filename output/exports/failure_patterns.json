@@ -1,0 +1,232 @@
+[
+  {
+    "pattern": "repair \u4fee\u7406",
+    "occurrences": 818,
+    "total_cost": 2118.0,
+    "avg_cost": 706.0,
+    "category": "other",
+    "equipment_affected": 23,
+    "example_wo_numbers": "AW2400074780, AW2400006052, AW2400199966",
+    "impact_score": 13860.192000000001
+  },
+  {
+    "pattern": "replace \u66f4\u63db",
+    "occurrences": 523,
+    "total_cost": 10320.9,
+    "avg_cost": 688.06,
+    "category": "other",
+    "equipment_affected": 22,
+    "example_wo_numbers": "AW2400170009, AW2400006152, AW2400228939",
+    "impact_score": 8276.673739999998
+  },
+  {
+    "pattern": "tear \u640d\u8017",
+    "occurrences": 564,
+    "total_cost": 8020.17,
+    "avg_cost": 729.1063636363637,
+    "category": "other",
+    "equipment_affected": 18,
+    "example_wo_numbers": "AW2400170009, AW2400199992, AW2400006152",
+    "impact_score": 7813.103792727273
+  },
+  {
+    "pattern": "malfunction \u6545\u969c",
+    "occurrences": 394,
+    "total_cost": 5470.5,
+    "avg_cost": 683.8125,
+    "category": "malfunction",
+    "equipment_affected": 21,
+    "example_wo_numbers": "AW2400170226, AW2400006228, AW2400107899",
+    "impact_score": 5927.28675
+  },
+  {
+    "pattern": "shopping centre",
+    "occurrences": 190,
+    "total_cost": 4965.51,
+    "avg_cost": 620.68875,
+    "category": "other",
+    "equipment_affected": 14,
+    "example_wo_numbers": "AW2400199995, AW2400074893, AW2400200140",
+    "impact_score": 1768.9629375
+  },
+  {
+    "pattern": "equipment \u8a2d\u5099",
+    "occurrences": 172,
+    "total_cost": 3248.0,
+    "avg_cost": 649.6,
+    "category": "other",
+    "equipment_affected": 14,
+    "example_wo_numbers": "AW2400170226, AW2400170453, AW2400006574",
+    "impact_score": 1675.968
+  },
+  {
+    "pattern": "loosen \u640d\u58de/\u9b06\u812b",
+    "occurrences": 472,
+    "total_cost": 2340.81,
+    "avg_cost": 585.2025,
+    "category": "other",
+    "equipment_affected": 5,
+    "example_wo_numbers": "AW2400170016, AW2400074780, AW2400199964",
+    "impact_score": 1657.2934799999998
+  },
+  {
+    "pattern": "damaged \u640d\u58de",
+    "occurrences": 260,
+    "total_cost": 1181.73,
+    "avg_cost": 590.865,
+    "category": "broken",
+    "equipment_affected": 8,
+    "example_wo_numbers": "AW2400200003, AW2400200005, AW2400006152",
+    "impact_score": 1382.6241
+  },
+  {
+    "pattern": "vandalism \u4eba\u70ba\u7834\u58de",
+    "occurrences": 163,
+    "total_cost": 1132.59,
+    "avg_cost": 566.295,
+    "category": "other",
+    "equipment_affected": 9,
+    "example_wo_numbers": "AW2400107899, AW2400200300, AW2400200314",
+    "impact_score": 923.06085
+  },
+  {
+    "pattern": "replacement work",
+    "occurrences": 120,
+    "total_cost": 1953.4,
+    "avg_cost": 651.1333333333333,
+    "category": "other",
+    "equipment_affected": 8,
+    "example_wo_numbers": "AW2400075007, AW2400006858, AW2400200533",
+    "impact_score": 703.2239999999999
+  },
+  {
+    "pattern": "cleaning \u6e05\u6d17",
+    "occurrences": 69,
+    "total_cost": 840.0,
+    "avg_cost": 840.0,
+    "category": "other",
+    "equipment_affected": 8,
+    "example_wo_numbers": "AW2400041471, AW2400170838, AW2400041955",
+    "impact_score": 521.64
+  },
+  {
+    "pattern": "water pipe",
+    "occurrences": 126,
+    "total_cost": 1702.92,
+    "avg_cost": 851.46,
+    "category": "other",
+    "equipment_affected": 3,
+    "example_wo_numbers": "AW2400107733, AW2400041450, AW2400041471",
+    "impact_score": 429.13584000000003
+  },
+  {
+    "pattern": "fire services\u7dca\u6025\u4e8b\u6545",
+    "occurrences": 87,
+    "total_cost": 725.34,
+    "avg_cost": 725.34,
+    "category": "other",
+    "equipment_affected": 2,
+    "example_wo_numbers": "AW2400170009, AW2400074968, AW2400007952",
+    "impact_score": 189.31374
+  },
+  {
+    "pattern": "water seepage",
+    "occurrences": 91,
+    "total_cost": 934.64,
+    "avg_cost": 934.64,
+    "category": "other",
+    "equipment_affected": 1,
+    "example_wo_numbers": "AW2400199976, AW2400139936, AW2400139969",
+    "impact_score": 170.10448000000002
+  },
+  {
+    "pattern": "pipe clogged",
+    "occurrences": 79,
+    "total_cost": 840.0,
+    "avg_cost": 840.0,
+    "category": "clog",
+    "equipment_affected": 1,
+    "example_wo_numbers": "AW2400041471, AW2400108272, AW2400200533",
+    "impact_score": 132.72
+  },
+  {
+    "pattern": "clogged \u5589\u7ba1\u963b\u585e",
+    "occurrences": 79,
+    "total_cost": 840.0,
+    "avg_cost": 840.0,
+    "category": "clog",
+    "equipment_affected": 1,
+    "example_wo_numbers": "AW2400041471, AW2400108272, AW2400200533",
+    "impact_score": 132.72
+  },
+  {
+    "pattern": "water pipe clogged",
+    "occurrences": 79,
+    "total_cost": 840.0,
+    "avg_cost": 840.0,
+    "category": "clog",
+    "equipment_affected": 1,
+    "example_wo_numbers": "AW2400041471, AW2400108272, AW2400200533",
+    "impact_score": 132.72
+  },
+  {
+    "pattern": "pipe clogged \u5589\u7ba1\u963b\u585e",
+    "occurrences": 79,
+    "total_cost": 840.0,
+    "avg_cost": 840.0,
+    "category": "clog",
+    "equipment_affected": 1,
+    "example_wo_numbers": "AW2400041471, AW2400108272, AW2400200533",
+    "impact_score": 132.72
+  },
+  {
+    "pattern": "overflow \u6ea2\u6eff",
+    "occurrences": 79,
+    "total_cost": 840.0,
+    "avg_cost": 840.0,
+    "category": "other",
+    "equipment_affected": 1,
+    "example_wo_numbers": "AW2400199966, AW2400041471, AW2400108272",
+    "impact_score": 132.72
+  },
+  {
+    "pattern": "reset \u91cd\u8a2d",
+    "occurrences": 17,
+    "total_cost": 1390.0,
+    "avg_cost": 695.0,
+    "category": "other",
+    "equipment_affected": 6,
+    "example_wo_numbers": "AW2400172505, AW2400078800, AW2400078820",
+    "impact_score": 82.705
+  },
+  {
+    "pattern": "control fault",
+    "occurrences": 45,
+    "total_cost": 218.35,
+    "avg_cost": 218.35,
+    "category": "other",
+    "equipment_affected": 7,
+    "example_wo_numbers": "AW2400107983, AW2400107985, AW2400200611",
+    "impact_score": 78.606
+  },
+  {
+    "pattern": "resume normal",
+    "occurrences": 15,
+    "total_cost": 537.0,
+    "avg_cost": 537.0,
+    "category": "other",
+    "equipment_affected": 2,
+    "example_wo_numbers": "AW2400142194, AW2400174750, AW2400144668",
+    "impact_score": 24.165
+  },
+  {
+    "pattern": "tmc follow",
+    "occurrences": 12,
+    "total_cost": 153.3,
+    "avg_cost": 153.3,
+    "category": "other",
+    "equipment_affected": 3,
+    "example_wo_numbers": "AW2400010217, AW2400081902, AW2400081908",
+    "impact_score": 7.3584000000000005
+  }
+]

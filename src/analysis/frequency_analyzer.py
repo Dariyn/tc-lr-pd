@@ -11,7 +11,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def calculate_equipment_frequencies(df: pd.DataFrame) -> pd.DataFrame:
+def calculate_equipment_frequencies(
+    df: pd.DataFrame,
+    exclude_no_equipment: bool = True
+) -> pd.DataFrame:
     """
     Calculate work order frequency metrics for each equipment item.
 
@@ -25,14 +28,19 @@ def calculate_equipment_frequencies(df: pd.DataFrame) -> pd.DataFrame:
     Args:
         df: DataFrame with work order data, must include:
             - Equipment_ID
+            - EquipmentName
             - equipment_primary_category
             - Create_Date
             - Complete_Date (optional)
             - PO_AMOUNT (optional)
+        exclude_no_equipment: If True (default), exclude 'No Equipment' category
+            from frequency analysis. These are interior/general maintenance work
+            orders that don't have specific equipment to analyze.
 
     Returns:
         DataFrame with equipment-level frequency statistics:
         - Equipment_ID
+        - Equipment_Name
         - equipment_primary_category
         - total_work_orders
         - timespan_days
@@ -40,8 +48,20 @@ def calculate_equipment_frequencies(df: pd.DataFrame) -> pd.DataFrame:
         - avg_completion_days
         - avg_cost
     """
+    # Filter out 'No Equipment' category if requested
+    if exclude_no_equipment:
+        no_equip_count = (df['equipment_primary_category'] == 'No Equipment').sum()
+        if no_equip_count > 0:
+            logger.info(
+                f"Excluding {no_equip_count} 'No Equipment' records from frequency analysis"
+            )
+            df = df[df['equipment_primary_category'] != 'No Equipment']
+
     # Group by equipment and category
     grouped = df.groupby(['Equipment_ID', 'equipment_primary_category'])
+
+    # Build Equipment_ID to EquipmentName mapping
+    equipment_names = df.groupby('Equipment_ID')['EquipmentName'].first().to_dict()
 
     results = []
 
@@ -79,8 +99,18 @@ def calculate_equipment_frequencies(df: pd.DataFrame) -> pd.DataFrame:
         valid_costs = group[group['PO_AMOUNT'] > 0]['PO_AMOUNT']
         avg_cost = valid_costs.mean() if len(valid_costs) > 0 else None
 
+        # Get equipment name - handle missing names and format IDs properly
+        equip_name = equipment_names.get(equipment_id)
+        if not equip_name or pd.isna(equip_name) or str(equip_name).strip() == '':
+            # Format equipment ID without scientific notation
+            if isinstance(equipment_id, (int, float)):
+                equip_name = f'Unknown Equipment {int(equipment_id)}'
+            else:
+                equip_name = f'Unknown Equipment {equipment_id}'
+
         results.append({
             'Equipment_ID': equipment_id,
+            'Equipment_Name': equip_name,
             'equipment_primary_category': category,
             'total_work_orders': total_work_orders,
             'timespan_days': timespan_days,

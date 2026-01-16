@@ -3,13 +3,43 @@ PDF report generator module for creating formatted PDF reports.
 
 Purpose: Convert Report objects from report_builder into professional PDF documents
 with tables, formatting, and recommendations for stakeholder distribution.
+
+Supports Chinese/Unicode characters by embedding a Unicode-compatible font.
 """
 
 import pandas as pd
+import re
+import os
 from datetime import datetime
+from pathlib import Path
 from fpdf import FPDF
 from typing import Dict, Any, List, Optional
 from src.reporting.report_builder import Report, ReportSection
+
+
+def sanitize_text(text: str, unicode_enabled: bool = True) -> str:
+    """
+    Sanitize text for PDF output.
+
+    If unicode_enabled is True, returns text as-is (for Unicode fonts).
+    If unicode_enabled is False, replaces non-ASCII characters with [?].
+
+    Args:
+        text: Input text that may contain non-ASCII characters
+        unicode_enabled: Whether Unicode font is being used
+
+    Returns:
+        Processed text string
+    """
+    if not isinstance(text, str):
+        text = str(text)
+
+    if unicode_enabled:
+        # Just clean up any control characters that could cause issues
+        return ''.join(char for char in text if ord(char) >= 32 or char in '\n\r\t')
+    else:
+        # Replace non-ASCII characters with [?] for ASCII-only fonts
+        return text.encode('ascii', 'replace').decode('ascii')
 
 
 class PDFReportGenerator:
@@ -23,16 +53,89 @@ class PDFReportGenerator:
     - Analysis sections (equipment, seasonal, vendor, failure)
     - Formatted tables with alternating row colors
     - Recommendations and page numbering
+    - Unicode/Chinese character support via embedded fonts
     """
 
     # Color constants
     HEADER_COLOR = (31, 71, 136)  # Dark blue #1f4788
     ALT_ROW_COLOR = (240, 240, 240)  # Light gray #f0f0f0
 
+    # Common font paths for Chinese fonts on different OS
+    UNICODE_FONT_PATHS = [
+        # Windows
+        'C:/Windows/Fonts/msyh.ttc',      # Microsoft YaHei
+        'C:/Windows/Fonts/simsun.ttc',    # SimSun
+        'C:/Windows/Fonts/simhei.ttf',    # SimHei
+        'C:/Windows/Fonts/msjh.ttc',      # Microsoft JhengHei
+        'C:/Windows/Fonts/mingliu.ttc',   # MingLiU
+        # macOS
+        '/System/Library/Fonts/PingFang.ttc',
+        '/Library/Fonts/Arial Unicode.ttf',
+        '/System/Library/Fonts/STHeiti Light.ttc',
+        # Linux
+        '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf',
+        '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+        '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+    ]
+
     def __init__(self):
         """Initialize PDF generator with default settings."""
         self.pdf = None
         self.report = None
+        self.unicode_enabled = False
+        self.font_family = 'Arial'  # Default font
+
+    def _find_unicode_font(self) -> Optional[str]:
+        """
+        Find an available Unicode font on the system.
+
+        Returns:
+            Path to a Unicode font file, or None if not found
+        """
+        for font_path in self.UNICODE_FONT_PATHS:
+            if os.path.exists(font_path):
+                return font_path
+        return None
+
+    def _setup_unicode_font(self) -> bool:
+        """
+        Set up Unicode font support for the PDF.
+
+        Returns:
+            True if Unicode font was successfully loaded, False otherwise
+        """
+        font_path = self._find_unicode_font()
+
+        if font_path:
+            try:
+                # Register the Unicode font
+                self.pdf.add_font('UniFont', '', font_path, uni=True)
+                self.pdf.add_font('UniFont', 'B', font_path, uni=True)
+                self.font_family = 'UniFont'
+                self.unicode_enabled = True
+                return True
+            except Exception as e:
+                # Fall back to Arial if font loading fails
+                print(f"Warning: Could not load Unicode font: {e}")
+                self.font_family = 'Arial'
+                self.unicode_enabled = False
+                return False
+        else:
+            self.font_family = 'Arial'
+            self.unicode_enabled = False
+            return False
+
+    def _sanitize(self, text: str) -> str:
+        """
+        Sanitize text for PDF output using current font settings.
+
+        Args:
+            text: Input text that may contain non-ASCII characters
+
+        Returns:
+            Processed text string
+        """
+        return sanitize_text(text, self.unicode_enabled)
 
     def generate_pdf(self, report: Report, output_file: str) -> None:
         """
@@ -51,6 +154,9 @@ class PDFReportGenerator:
         self.pdf = FPDF(orientation='P', unit='mm', format='A4')
         self.pdf.set_auto_page_break(auto=True, margin=20)
         self.pdf.set_margins(left=20, top=20, right=20)
+
+        # Set up Unicode font support for Chinese characters
+        self._setup_unicode_font()
 
         # Add pages
         self._add_cover_page(report)
@@ -87,12 +193,12 @@ class PDFReportGenerator:
         self.pdf.add_page()
 
         # Title
-        self.pdf.set_font('Arial', 'B', 24)
+        self.pdf.set_font(self.font_family, 'B', 24)
         self.pdf.ln(40)
         self.pdf.cell(0, 10, 'Work Order Analysis Report', 0, 1, 'C')
 
         # Date
-        self.pdf.set_font('Arial', '', 12)
+        self.pdf.set_font(self.font_family, '', 12)
         self.pdf.ln(10)
         self.pdf.cell(0, 10, f"Generated: {report.metadata.get('generated_date', 'N/A')}", 0, 1, 'C')
 
@@ -104,11 +210,11 @@ class PDFReportGenerator:
 
         # Key metrics box
         self.pdf.ln(20)
-        self.pdf.set_font('Arial', 'B', 14)
+        self.pdf.set_font(self.font_family, 'B', 14)
         self.pdf.cell(0, 10, 'Summary Metrics', 0, 1, 'C')
 
         self.pdf.ln(10)
-        self.pdf.set_font('Arial', '', 12)
+        self.pdf.set_font(self.font_family, '', 12)
 
         # Metrics
         metrics = [
@@ -120,9 +226,9 @@ class PDFReportGenerator:
 
         for label, value in metrics:
             self.pdf.cell(90, 8, label, 0, 0, 'R')
-            self.pdf.set_font('Arial', 'B', 12)
+            self.pdf.set_font(self.font_family, 'B', 12)
             self.pdf.cell(0, 8, value, 0, 1, 'L')
-            self.pdf.set_font('Arial', '', 12)
+            self.pdf.set_font(self.font_family, '', 12)
 
     def _add_table_of_contents(self, report: Report) -> None:
         """
@@ -137,12 +243,12 @@ class PDFReportGenerator:
         self.pdf.add_page()
 
         # Title
-        self.pdf.set_font('Arial', 'B', 16)
+        self.pdf.set_font(self.font_family, 'B', 16)
         self.pdf.cell(0, 10, 'Table of Contents', 0, 1, 'L')
         self.pdf.ln(10)
 
         # Sections
-        self.pdf.set_font('Arial', '', 12)
+        self.pdf.set_font(self.font_family, '', 12)
 
         sections = [
             'Executive Summary',
@@ -164,13 +270,13 @@ class PDFReportGenerator:
         self.pdf.add_page()
 
         # Title
-        self.pdf.set_font('Arial', 'B', 16)
+        self.pdf.set_font(self.font_family, 'B', 16)
         self.pdf.cell(0, 10, 'Executive Summary', 0, 1, 'L')
         self.pdf.ln(5)
 
-        # Summary text
-        self.pdf.set_font('Arial', '', 10)
-        self.pdf.multi_cell(0, 6, summary_text)
+        # Summary text (sanitized for ASCII compatibility)
+        self.pdf.set_font(self.font_family, '', 10)
+        self.pdf.multi_cell(0, 6, self._sanitize(summary_text))
 
     def _add_equipment_section(self, section: ReportSection) -> None:
         """
@@ -184,13 +290,13 @@ class PDFReportGenerator:
         self.pdf.add_page()
 
         # Section title
-        self.pdf.set_font('Arial', 'B', 16)
-        self.pdf.cell(0, 10, section.title, 0, 1, 'L')
+        self.pdf.set_font(self.font_family, 'B', 16)
+        self.pdf.cell(0, 10, self._sanitize(section.title), 0, 1, 'L')
         self.pdf.ln(5)
 
-        # Summary text
-        self.pdf.set_font('Arial', '', 10)
-        self.pdf.multi_cell(0, 6, section.summary_text)
+        # Summary text (sanitized)
+        self.pdf.set_font(self.font_family, '', 10)
+        self.pdf.multi_cell(0, 6, self._sanitize(section.summary_text))
         self.pdf.ln(5)
 
         # Extract content
@@ -201,7 +307,7 @@ class PDFReportGenerator:
             if 'top_equipment' in content and isinstance(content['top_equipment'], pd.DataFrame):
                 top_equipment = content['top_equipment']
                 if not top_equipment.empty:
-                    self.pdf.set_font('Arial', 'B', 12)
+                    self.pdf.set_font(self.font_family, 'B', 12)
                     self.pdf.cell(0, 8, 'Top Priority Equipment (Top 10)', 0, 1, 'L')
                     self.pdf.ln(2)
 
@@ -217,7 +323,7 @@ class PDFReportGenerator:
                     }
 
                     # Header row
-                    self.pdf.set_font('Arial', 'B', 8)
+                    self.pdf.set_font(self.font_family, 'B', 8)
                     self.pdf.set_fill_color(*self.HEADER_COLOR)
                     self.pdf.set_text_color(255, 255, 255)
 
@@ -238,7 +344,7 @@ class PDFReportGenerator:
                     self.pdf.ln()
 
                     # Data rows
-                    self.pdf.set_font('Arial', '', 8)
+                    self.pdf.set_font(self.font_family, '', 8)
                     self.pdf.set_text_color(0, 0, 0)
 
                     for idx, row in top_equipment.iterrows():
@@ -251,7 +357,7 @@ class PDFReportGenerator:
 
                         for col in top_equipment.columns:
                             if col in col_widths:
-                                value = str(row[col])
+                                value = self._sanitize(str(row[col]))
                                 # Truncate long values
                                 max_len = int(col_widths[col] / 2)
                                 if len(value) > max_len:
@@ -262,9 +368,9 @@ class PDFReportGenerator:
             # Thresholds
             if 'thresholds' in content and isinstance(content['thresholds'], dict):
                 self.pdf.ln(5)
-                self.pdf.set_font('Arial', 'B', 12)
+                self.pdf.set_font(self.font_family, 'B', 12)
                 self.pdf.cell(0, 8, 'Detection Thresholds', 0, 1, 'L')
-                self.pdf.set_font('Arial', '', 10)
+                self.pdf.set_font(self.font_family, '', 10)
                 thresholds = content['thresholds']
                 threshold_text = (
                     f"Work Orders per Month: {thresholds.get('wo_per_month_threshold', 'N/A')}\n"
@@ -275,11 +381,11 @@ class PDFReportGenerator:
         # Recommendations
         if section.recommendations:
             self.pdf.ln(5)
-            self.pdf.set_font('Arial', 'B', 12)
+            self.pdf.set_font(self.font_family, 'B', 12)
             self.pdf.cell(0, 8, 'Recommendations', 0, 1, 'L')
             self.pdf.ln(2)
 
-            self.pdf.set_font('Arial', '', 10)
+            self.pdf.set_font(self.font_family, '', 10)
             for rec in section.recommendations:
                 # Calculate available width for bullet text
                 left_margin = self.pdf.l_margin
@@ -292,7 +398,7 @@ class PDFReportGenerator:
                 y_pos = self.pdf.get_y()
                 self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
                 self.pdf.set_x(left_margin + bullet_indent)
-                self.pdf.multi_cell(text_width, 6, str(rec) if rec else '')
+                self.pdf.multi_cell(text_width, 6, self._sanitize(str(rec)) if rec else '')
 
     def _add_seasonal_section(self, section: ReportSection) -> None:
         """
@@ -306,13 +412,13 @@ class PDFReportGenerator:
         self.pdf.add_page()
 
         # Section title
-        self.pdf.set_font('Arial', 'B', 16)
-        self.pdf.cell(0, 10, section.title, 0, 1, 'L')
+        self.pdf.set_font(self.font_family, 'B', 16)
+        self.pdf.cell(0, 10, self._sanitize(section.title), 0, 1, 'L')
         self.pdf.ln(5)
 
-        # Summary text
-        self.pdf.set_font('Arial', '', 10)
-        self.pdf.multi_cell(0, 6, section.summary_text)
+        # Summary text (sanitized)
+        self.pdf.set_font(self.font_family, '', 10)
+        self.pdf.multi_cell(0, 6, self._sanitize(section.summary_text))
         self.pdf.ln(5)
 
         # Extract content
@@ -323,7 +429,7 @@ class PDFReportGenerator:
             if 'monthly_costs' in content and isinstance(content['monthly_costs'], pd.DataFrame):
                 monthly = content['monthly_costs']
                 if not monthly.empty:
-                    self.pdf.set_font('Arial', 'B', 12)
+                    self.pdf.set_font(self.font_family, 'B', 12)
                     self.pdf.cell(0, 8, 'Monthly Cost Trends', 0, 1, 'L')
                     self.pdf.ln(2)
                     self._format_table(monthly, max_rows=12)
@@ -333,7 +439,7 @@ class PDFReportGenerator:
                 quarterly = content['quarterly_costs']
                 if not quarterly.empty:
                     self.pdf.ln(5)
-                    self.pdf.set_font('Arial', 'B', 12)
+                    self.pdf.set_font(self.font_family, 'B', 12)
                     self.pdf.cell(0, 8, 'Quarterly Cost Analysis', 0, 1, 'L')
                     self.pdf.ln(2)
                     self._format_table(quarterly, max_rows=8)
@@ -341,13 +447,13 @@ class PDFReportGenerator:
             # Detected patterns
             if 'patterns' in content and content['patterns']:
                 self.pdf.ln(5)
-                self.pdf.set_font('Arial', 'B', 12)
+                self.pdf.set_font(self.font_family, 'B', 12)
                 self.pdf.cell(0, 8, 'Detected Patterns', 0, 1, 'L')
                 self.pdf.ln(2)
 
-                self.pdf.set_font('Arial', '', 10)
+                self.pdf.set_font(self.font_family, '', 10)
                 for pattern in content['patterns']:
-                    pattern_text = pattern.get('pattern', 'Unknown pattern')
+                    pattern_text = self._sanitize(pattern.get('pattern', 'Unknown pattern'))
                     # Calculate available width for bullet text
                     left_margin = self.pdf.l_margin
                     right_margin = self.pdf.r_margin
@@ -364,11 +470,11 @@ class PDFReportGenerator:
         # Recommendations
         if section.recommendations:
             self.pdf.ln(5)
-            self.pdf.set_font('Arial', 'B', 12)
+            self.pdf.set_font(self.font_family, 'B', 12)
             self.pdf.cell(0, 8, 'Recommendations', 0, 1, 'L')
             self.pdf.ln(2)
 
-            self.pdf.set_font('Arial', '', 10)
+            self.pdf.set_font(self.font_family, '', 10)
             for rec in section.recommendations:
                 # Calculate available width for bullet text
                 left_margin = self.pdf.l_margin
@@ -381,7 +487,7 @@ class PDFReportGenerator:
                 y_pos = self.pdf.get_y()
                 self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
                 self.pdf.set_x(left_margin + bullet_indent)
-                self.pdf.multi_cell(text_width, 6, str(rec) if rec else '')
+                self.pdf.multi_cell(text_width, 6, self._sanitize(str(rec)) if rec else '')
 
     def _add_vendor_section(self, section: ReportSection) -> None:
         """
@@ -395,13 +501,13 @@ class PDFReportGenerator:
         self.pdf.add_page()
 
         # Section title
-        self.pdf.set_font('Arial', 'B', 16)
-        self.pdf.cell(0, 10, section.title, 0, 1, 'L')
+        self.pdf.set_font(self.font_family, 'B', 16)
+        self.pdf.cell(0, 10, self._sanitize(section.title), 0, 1, 'L')
         self.pdf.ln(5)
 
-        # Summary text
-        self.pdf.set_font('Arial', '', 10)
-        self.pdf.multi_cell(0, 6, section.summary_text)
+        # Summary text (sanitized)
+        self.pdf.set_font(self.font_family, '', 10)
+        self.pdf.multi_cell(0, 6, self._sanitize(section.summary_text))
         self.pdf.ln(5)
 
         # Extract content
@@ -412,7 +518,7 @@ class PDFReportGenerator:
             if 'top_vendors' in content and isinstance(content['top_vendors'], pd.DataFrame):
                 vendors = content['top_vendors']
                 if not vendors.empty:
-                    self.pdf.set_font('Arial', 'B', 12)
+                    self.pdf.set_font(self.font_family, 'B', 12)
                     self.pdf.cell(0, 8, 'Top Vendors by Cost', 0, 1, 'L')
                     self.pdf.ln(2)
 
@@ -426,7 +532,7 @@ class PDFReportGenerator:
                     }
 
                     # Header row
-                    self.pdf.set_font('Arial', 'B', 8)
+                    self.pdf.set_font(self.font_family, 'B', 8)
                     self.pdf.set_fill_color(*self.HEADER_COLOR)
                     self.pdf.set_text_color(255, 255, 255)
 
@@ -445,7 +551,7 @@ class PDFReportGenerator:
                     self.pdf.ln()
 
                     # Data rows (top 15)
-                    self.pdf.set_font('Arial', '', 8)
+                    self.pdf.set_font(self.font_family, '', 8)
                     self.pdf.set_text_color(0, 0, 0)
 
                     for idx, row in vendors.head(15).iterrows():
@@ -458,7 +564,7 @@ class PDFReportGenerator:
 
                         for col in vendors.columns:
                             if col in col_widths:
-                                value = str(row[col])
+                                value = self._sanitize(str(row[col]))
                                 # Truncate long values
                                 max_len = int(col_widths[col] / 2)
                                 if len(value) > max_len:
@@ -469,11 +575,11 @@ class PDFReportGenerator:
         # Recommendations
         if section.recommendations:
             self.pdf.ln(5)
-            self.pdf.set_font('Arial', 'B', 12)
+            self.pdf.set_font(self.font_family, 'B', 12)
             self.pdf.cell(0, 8, 'Recommendations', 0, 1, 'L')
             self.pdf.ln(2)
 
-            self.pdf.set_font('Arial', '', 10)
+            self.pdf.set_font(self.font_family, '', 10)
             for rec in section.recommendations:
                 # Calculate available width for bullet text
                 left_margin = self.pdf.l_margin
@@ -486,7 +592,7 @@ class PDFReportGenerator:
                 y_pos = self.pdf.get_y()
                 self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
                 self.pdf.set_x(left_margin + bullet_indent)
-                self.pdf.multi_cell(text_width, 6, str(rec) if rec else '')
+                self.pdf.multi_cell(text_width, 6, self._sanitize(str(rec)) if rec else '')
 
     def _add_failure_section(self, section: ReportSection) -> None:
         """
@@ -500,13 +606,13 @@ class PDFReportGenerator:
         self.pdf.add_page()
 
         # Section title
-        self.pdf.set_font('Arial', 'B', 16)
-        self.pdf.cell(0, 10, section.title, 0, 1, 'L')
+        self.pdf.set_font(self.font_family, 'B', 16)
+        self.pdf.cell(0, 10, self._sanitize(section.title), 0, 1, 'L')
         self.pdf.ln(5)
 
-        # Summary text
-        self.pdf.set_font('Arial', '', 10)
-        self.pdf.multi_cell(0, 6, section.summary_text)
+        # Summary text (sanitized)
+        self.pdf.set_font(self.font_family, '', 10)
+        self.pdf.multi_cell(0, 6, self._sanitize(section.summary_text))
         self.pdf.ln(5)
 
         # Extract content
@@ -517,7 +623,7 @@ class PDFReportGenerator:
             if 'high_impact_patterns' in content and isinstance(content['high_impact_patterns'], pd.DataFrame):
                 patterns = content['high_impact_patterns']
                 if not patterns.empty:
-                    self.pdf.set_font('Arial', 'B', 12)
+                    self.pdf.set_font(self.font_family, 'B', 12)
                     self.pdf.cell(0, 8, 'High-Impact Failure Patterns (Top 20)', 0, 1, 'L')
                     self.pdf.ln(2)
 
@@ -531,7 +637,7 @@ class PDFReportGenerator:
                     }
 
                     # Header row
-                    self.pdf.set_font('Arial', 'B', 8)
+                    self.pdf.set_font(self.font_family, 'B', 8)
                     self.pdf.set_fill_color(*self.HEADER_COLOR)
                     self.pdf.set_text_color(255, 255, 255)
 
@@ -550,7 +656,7 @@ class PDFReportGenerator:
                     self.pdf.ln()
 
                     # Data rows (top 20)
-                    self.pdf.set_font('Arial', '', 8)
+                    self.pdf.set_font(self.font_family, '', 8)
                     self.pdf.set_text_color(0, 0, 0)
 
                     for idx, row in patterns.head(20).iterrows():
@@ -563,7 +669,7 @@ class PDFReportGenerator:
 
                         for col in patterns.columns:
                             if col in col_widths:
-                                value = str(row[col])
+                                value = self._sanitize(str(row[col]))
                                 # Truncate long values
                                 max_len = int(col_widths[col] / 2)
                                 if len(value) > max_len:
@@ -574,11 +680,11 @@ class PDFReportGenerator:
         # Recommendations
         if section.recommendations:
             self.pdf.ln(5)
-            self.pdf.set_font('Arial', 'B', 12)
+            self.pdf.set_font(self.font_family, 'B', 12)
             self.pdf.cell(0, 8, 'Recommendations', 0, 1, 'L')
             self.pdf.ln(2)
 
-            self.pdf.set_font('Arial', '', 10)
+            self.pdf.set_font(self.font_family, '', 10)
             for rec in section.recommendations:
                 # Calculate available width for bullet text
                 left_margin = self.pdf.l_margin
@@ -591,7 +697,7 @@ class PDFReportGenerator:
                 y_pos = self.pdf.get_y()
                 self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
                 self.pdf.set_x(left_margin + bullet_indent)
-                self.pdf.multi_cell(text_width, 6, str(rec) if rec else '')
+                self.pdf.multi_cell(text_width, 6, self._sanitize(str(rec)) if rec else '')
 
     def _add_section(self, section: ReportSection) -> None:
         """
@@ -603,13 +709,13 @@ class PDFReportGenerator:
         self.pdf.add_page()
 
         # Section title
-        self.pdf.set_font('Arial', 'B', 16)
-        self.pdf.cell(0, 10, section.title, 0, 1, 'L')
+        self.pdf.set_font(self.font_family, 'B', 16)
+        self.pdf.cell(0, 10, self._sanitize(section.title), 0, 1, 'L')
         self.pdf.ln(5)
 
-        # Summary text
-        self.pdf.set_font('Arial', '', 10)
-        self.pdf.multi_cell(0, 6, section.summary_text)
+        # Summary text (sanitized)
+        self.pdf.set_font(self.font_family, '', 10)
+        self.pdf.multi_cell(0, 6, self._sanitize(section.summary_text))
         self.pdf.ln(5)
 
         # Content - handle DataFrame or dict
@@ -620,16 +726,16 @@ class PDFReportGenerator:
             for key, value in section.content.items():
                 if isinstance(value, pd.DataFrame) and not value.empty:
                     self.pdf.ln(5)
-                    self.pdf.set_font('Arial', 'B', 12)
+                    self.pdf.set_font(self.font_family, 'B', 12)
                     self.pdf.cell(0, 8, key.replace('_', ' ').title(), 0, 1, 'L')
                     self.pdf.ln(2)
                     self._format_table(value)
                 elif key == 'thresholds' and isinstance(value, dict):
                     # Handle thresholds specially
                     self.pdf.ln(5)
-                    self.pdf.set_font('Arial', 'B', 12)
+                    self.pdf.set_font(self.font_family, 'B', 12)
                     self.pdf.cell(0, 8, 'Detection Thresholds', 0, 1, 'L')
-                    self.pdf.set_font('Arial', '', 10)
+                    self.pdf.set_font(self.font_family, '', 10)
                     self.pdf.multi_cell(0, 6, f"WO/Month: {value.get('wo_per_month_threshold', 'N/A')}")
                     self.pdf.multi_cell(0, 6, f"Avg Cost: {value.get('avg_cost_threshold', 'N/A')}")
 
@@ -637,11 +743,11 @@ class PDFReportGenerator:
 
         # Recommendations
         if section.recommendations:
-            self.pdf.set_font('Arial', 'B', 12)
+            self.pdf.set_font(self.font_family, 'B', 12)
             self.pdf.cell(0, 8, 'Recommendations', 0, 1, 'L')
             self.pdf.ln(2)
 
-            self.pdf.set_font('Arial', '', 10)
+            self.pdf.set_font(self.font_family, '', 10)
             for rec in section.recommendations:
                 # Calculate available width for bullet text
                 left_margin = self.pdf.l_margin
@@ -654,7 +760,7 @@ class PDFReportGenerator:
                 y_pos = self.pdf.get_y()
                 self.pdf.cell(5, 6, chr(149), 0, 0, 'L')  # Bullet character
                 self.pdf.set_x(left_margin + bullet_indent)
-                self.pdf.multi_cell(text_width, 6, str(rec) if rec else '')
+                self.pdf.multi_cell(text_width, 6, self._sanitize(str(rec)) if rec else '')
 
     def _format_table(self, df: pd.DataFrame, max_rows: int = 20) -> None:
         """
@@ -665,7 +771,7 @@ class PDFReportGenerator:
             max_rows: Maximum number of rows to display (default 20)
         """
         if df.empty:
-            self.pdf.set_font('Arial', 'I', 10)
+            self.pdf.set_font(self.font_family, 'I', 10)
             self.pdf.cell(0, 8, 'No data available', 0, 1, 'L')
             return
 
@@ -683,7 +789,7 @@ class PDFReportGenerator:
             col_width = 20
 
         # Header row
-        self.pdf.set_font('Arial', 'B', 9)
+        self.pdf.set_font(self.font_family, 'B', 9)
         self.pdf.set_fill_color(*self.HEADER_COLOR)
         self.pdf.set_text_color(255, 255, 255)
 
@@ -696,7 +802,7 @@ class PDFReportGenerator:
         self.pdf.ln()
 
         # Data rows
-        self.pdf.set_font('Arial', '', 9)
+        self.pdf.set_font(self.font_family, '', 9)
         self.pdf.set_text_color(0, 0, 0)
 
         for idx, row in display_df.iterrows():
@@ -708,7 +814,7 @@ class PDFReportGenerator:
                 fill = False
 
             for col in display_df.columns:
-                value = str(row[col])
+                value = self._sanitize(str(row[col]))
                 # Truncate long values
                 if len(value) > 30:
                     value = value[:27] + '...'
@@ -718,7 +824,7 @@ class PDFReportGenerator:
         # Note if truncated
         if len(df) > max_rows:
             self.pdf.ln(2)
-            self.pdf.set_font('Arial', 'I', 8)
+            self.pdf.set_font(self.font_family, 'I', 8)
             self.pdf.cell(0, 5, f"Showing top {max_rows} of {len(df)} rows", 0, 1, 'L')
 
     def _add_recommendations_page(self, sections: List[ReportSection]) -> None:
@@ -731,7 +837,7 @@ class PDFReportGenerator:
         self.pdf.add_page()
 
         # Title
-        self.pdf.set_font('Arial', 'B', 16)
+        self.pdf.set_font(self.font_family, 'B', 16)
         self.pdf.cell(0, 10, 'Recommendations Summary', 0, 1, 'L')
         self.pdf.ln(5)
 
@@ -739,12 +845,12 @@ class PDFReportGenerator:
         for section in sections:
             if section.recommendations:
                 # Section name
-                self.pdf.set_font('Arial', 'B', 12)
+                self.pdf.set_font(self.font_family, 'B', 12)
                 self.pdf.cell(0, 8, section.title, 0, 1, 'L')
                 self.pdf.ln(2)
 
                 # Recommendations
-                self.pdf.set_font('Arial', '', 10)
+                self.pdf.set_font(self.font_family, '', 10)
                 for rec in section.recommendations:
                     # Calculate available width for bullet text
                     left_margin = self.pdf.l_margin
@@ -757,7 +863,7 @@ class PDFReportGenerator:
                     y_pos = self.pdf.get_y()
                     self.pdf.cell(5, 6, chr(149), 0, 0, 'L')
                     self.pdf.set_x(left_margin + bullet_indent)
-                    self.pdf.multi_cell(text_width, 6, str(rec) if rec else '')
+                    self.pdf.multi_cell(text_width, 6, self._sanitize(str(rec)) if rec else '')
 
                 self.pdf.ln(3)
 
@@ -772,7 +878,7 @@ class PDFReportGenerator:
         self.pdf.set_y(-15)
 
         # Footer text
-        self.pdf.set_font('Arial', 'I', 8)
+        self.pdf.set_font(self.font_family, 'I', 8)
         self.pdf.cell(0, 10, 'Generated by Work Order Analysis Pipeline', 0, 0, 'L')
 
         # Page number

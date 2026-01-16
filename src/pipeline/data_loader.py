@@ -108,6 +108,22 @@ def load_work_orders(file_path: Union[str, Path]) -> pd.DataFrame:
                     f"{col}: {invalid_count} invalid dates converted to NaT"
                 )
 
+    # Convert create_date_yyyymmdd with dayfirst format (D/M/YYYY)
+    if 'create_date_yyyymmdd' in df.columns:
+        original_count = df['create_date_yyyymmdd'].notna().sum()
+        df['create_date_yyyymmdd'] = pd.to_datetime(
+            df['create_date_yyyymmdd'],
+            errors='coerce',
+            dayfirst=True  # Handle D/M/YYYY format
+        )
+        converted_count = df['create_date_yyyymmdd'].notna().sum()
+        invalid_count = original_count - converted_count
+
+        if invalid_count > 0:
+            logger.warning(
+                f"create_date_yyyymmdd: {invalid_count} invalid dates converted to NaT"
+            )
+
     logger.info("Date columns converted to datetime")
 
     # Convert PO_AMOUNT to numeric
@@ -131,12 +147,18 @@ def load_work_orders(file_path: Union[str, Path]) -> pd.DataFrame:
 
     logger.info("Whitespace stripped from string columns")
 
-    # Log summary statistics
-    if 'Create_Date' in df.columns:
-        date_range_start = df['Create_Date'].min()
-        date_range_end = df['Create_Date'].max()
+    # Log summary statistics - prefer create_date_yyyymmdd
+    date_col_for_log = None
+    for col in ['create_date_yyyymmdd', 'Create_Date']:
+        if col in df.columns and df[col].notna().any():
+            date_col_for_log = col
+            break
+
+    if date_col_for_log:
+        date_range_start = df[date_col_for_log].min()
+        date_range_end = df[date_col_for_log].max()
         logger.info(
-            f"Date range: {date_range_start} to {date_range_end}"
+            f"Date range ({date_col_for_log}): {date_range_start} to {date_range_end}"
         )
 
     if 'PO_AMOUNT' in df.columns:

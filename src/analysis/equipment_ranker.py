@@ -104,7 +104,10 @@ def calculate_priority_score(outlier_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def rank_equipment(outlier_df: pd.DataFrame) -> pd.DataFrame:
+def rank_equipment(
+    outlier_df: pd.DataFrame,
+    exclude_no_equipment: bool = True
+) -> pd.DataFrame:
     """Rank equipment by priority score for cost reduction action.
 
     Process:
@@ -116,10 +119,19 @@ def rank_equipment(outlier_df: pd.DataFrame) -> pd.DataFrame:
 
     Args:
         outlier_df: DataFrame with outlier detection results
+        exclude_no_equipment: If True (default), exclude 'No Equipment' category
+            from ranking. These records represent interior/general maintenance
+            without specific equipment to prioritize.
 
     Returns:
         DataFrame with ranked consensus outliers, sorted by priority
     """
+    # Filter out 'No Equipment' category if requested
+    if exclude_no_equipment and 'equipment_primary_category' in outlier_df.columns:
+        no_equip_mask = outlier_df['equipment_primary_category'] == 'No Equipment'
+        if no_equip_mask.any():
+            outlier_df = outlier_df[~no_equip_mask]
+
     # Calculate metrics
     df = calculate_cost_impact(outlier_df)
     df = calculate_priority_score(df)
@@ -144,6 +156,77 @@ def rank_equipment(outlier_df: pd.DataFrame) -> pd.DataFrame:
     ranked['category_rank'] = ranked.groupby('equipment_primary_category').cumcount() + 1
 
     return ranked
+
+
+def rank_all_equipment(
+    freq_df: pd.DataFrame,
+    exclude_no_equipment: bool = True
+) -> pd.DataFrame:
+    """Rank ALL equipment by priority score (not just outliers).
+
+    Similar to rank_equipment but returns all equipment items sorted by
+    priority score, useful for seeing the full equipment landscape.
+
+    Args:
+        freq_df: DataFrame from calculate_equipment_frequencies() with:
+            - Equipment_ID, Equipment_Name, equipment_primary_category
+            - total_work_orders, work_orders_per_month, avg_cost
+        exclude_no_equipment: If True (default), exclude 'No Equipment' category
+
+    Returns:
+        DataFrame with all equipment ranked by priority_score
+    """
+    # Filter out 'No Equipment' category if requested
+    if exclude_no_equipment and 'equipment_primary_category' in freq_df.columns:
+        no_equip_mask = freq_df['equipment_primary_category'] == 'No Equipment'
+        if no_equip_mask.any():
+            freq_df = freq_df[~no_equip_mask]
+
+    if len(freq_df) == 0:
+        return pd.DataFrame()
+
+    df = freq_df.copy()
+
+    # Calculate cost impact
+    df['cost_impact'] = df['total_work_orders'] * df['avg_cost'].fillna(0)
+
+    # Calculate normalized scores within each category
+    df['freq_score'] = 0.0
+    df['cost_score'] = 0.0
+
+    for category in df['equipment_primary_category'].unique():
+        cat_mask = df['equipment_primary_category'] == category
+        cat_df = df[cat_mask]
+
+        # Normalize frequency score (0-1)
+        freq_min = cat_df['work_orders_per_month'].min()
+        freq_max = cat_df['work_orders_per_month'].max()
+        if freq_max > freq_min:
+            df.loc[cat_mask, 'freq_score'] = (
+                (cat_df['work_orders_per_month'] - freq_min) / (freq_max - freq_min)
+            )
+        else:
+            df.loc[cat_mask, 'freq_score'] = 0.5
+
+        # Normalize cost score (0-1)
+        cost_min = cat_df['cost_impact'].min()
+        cost_max = cat_df['cost_impact'].max()
+        if cost_max > cost_min:
+            df.loc[cat_mask, 'cost_score'] = (
+                (cat_df['cost_impact'] - cost_min) / (cost_max - cost_min)
+            )
+        else:
+            df.loc[cat_mask, 'cost_score'] = 0.5
+
+    # Calculate priority score (frequency 50%, cost 50% - no outlier bonus)
+    df['priority_score'] = (df['freq_score'] * 0.5) + (df['cost_score'] * 0.5)
+
+    # Sort and rank
+    df = df.sort_values('priority_score', ascending=False)
+    df['overall_rank'] = range(1, len(df) + 1)
+    df['category_rank'] = df.groupby('equipment_primary_category').cumcount() + 1
+
+    return df
 
 
 def identify_thresholds(ranked_df: pd.DataFrame) -> Dict[str, float]:
