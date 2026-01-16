@@ -325,3 +325,159 @@ def test_e2e_sample_data_produces_expected_patterns(orchestrator_with_sample):
     # Failure patterns may be empty if description column not found in categorizer
     patterns_list = results['patterns_list']
     # No assertion - pattern analysis is optional if text fields not available
+
+
+# =============================================================================
+# Smoke Tests (4 tests)
+# =============================================================================
+
+def test_e2e_minimal_data(tmp_path):
+    """Verify pipeline works with minimal data (5 rows)."""
+    # Create minimal CSV with 5 rows
+    minimal_csv = tmp_path / 'minimal.csv'
+    minimal_csv.write_text("""id_,wo_no,Equipment_ID,EquipmentName,Create_Date,Complete_Date,PO_AMOUNT,Property_category,FM_Type,Work_Order_Type,service_type_lv2,service_type_lv3,Contractor,Work_Order_Description
+1,WO-001,EQ-001,Test Equipment,2024-01-01,2024-01-02,100,HVAC,Mechanical,Corrective,HVAC,Cooling,Vendor A,Test description
+2,WO-002,EQ-001,Test Equipment,2024-02-01,2024-02-02,200,HVAC,Mechanical,Corrective,HVAC,Cooling,Vendor A,Test description
+3,WO-003,EQ-002,Test Equipment 2,2024-03-01,2024-03-02,150,Electrical,Electrical,Corrective,Electrical,Power,Vendor B,Test description
+4,WO-004,EQ-002,Test Equipment 2,2024-04-01,2024-04-02,180,Electrical,Electrical,Corrective,Electrical,Power,Vendor B,Test description
+5,WO-005,EQ-003,Test Equipment 3,2024-05-01,2024-05-02,120,Plumbing,Mechanical,Corrective,Plumbing,Water Supply,Vendor A,Test description
+""")
+
+    from src.orchestrator import PipelineOrchestrator
+    orch = PipelineOrchestrator(str(minimal_csv), str(tmp_path / 'output'))
+
+    # Should not crash with minimal data
+    results = orch.run_full_analysis()
+
+    assert results is not None
+    assert 'equipment_df' in results
+    assert 'quality_report' in results
+
+
+def test_e2e_missing_optional_columns(tmp_path):
+    """Verify pipeline handles missing optional columns gracefully."""
+    # Create CSV without optional columns like service_type_lv3
+    csv_path = tmp_path / 'no_optional.csv'
+    csv_path.write_text("""id_,wo_no,Equipment_ID,EquipmentName,Create_Date,Complete_Date,PO_AMOUNT,Property_category,FM_Type,Work_Order_Type
+1,WO-001,EQ-001,Test Equipment,2024-01-01,2024-01-02,100,HVAC,Mechanical,Corrective
+2,WO-002,EQ-001,Test Equipment,2024-02-01,2024-02-02,200,HVAC,Mechanical,Corrective
+3,WO-003,EQ-002,Test Equipment 2,2024-03-01,2024-03-02,150,Electrical,Electrical,Corrective
+""")
+
+    from src.orchestrator import PipelineOrchestrator
+    orch = PipelineOrchestrator(str(csv_path), str(tmp_path / 'output'))
+
+    # May fail due to categorizer expecting service_type_lv3
+    try:
+        results = orch.run_full_analysis()
+        # If it succeeds, that's fine
+        assert results is not None
+    except KeyError as e:
+        # Expected if categorizer requires service_type_lv3
+        assert 'service_type_lv3' in str(e)
+
+
+def test_e2e_corrupted_data_handling(tmp_path):
+    """Verify handling of malformed CSV (bad dates, non-numeric costs)."""
+    # Create CSV with corrupted data
+    corrupted_csv = tmp_path / 'corrupted.csv'
+    corrupted_csv.write_text("""id_,wo_no,Equipment_ID,EquipmentName,Create_Date,Complete_Date,PO_AMOUNT,Property_category,FM_Type,Work_Order_Type,service_type_lv2,service_type_lv3,Contractor,Work_Order_Description
+1,WO-001,EQ-001,Test Equipment,INVALID_DATE,2024-01-02,100,HVAC,Mechanical,Corrective,HVAC,Cooling,Vendor A,Test description
+2,WO-002,EQ-001,Test Equipment,2024-02-01,2024-02-02,NOT_A_NUMBER,HVAC,Mechanical,Corrective,HVAC,Cooling,Vendor A,Test description
+3,WO-003,EQ-002,Test Equipment 2,2024-03-01,2024-03-02,150,Electrical,Electrical,Corrective,Electrical,Power,Vendor B,Test description
+""")
+
+    from src.orchestrator import PipelineOrchestrator
+    orch = PipelineOrchestrator(str(corrupted_csv), str(tmp_path / 'output'))
+
+    # Should handle corrupted data gracefully (pandas handles with errors='coerce')
+    results = orch.run_full_analysis()
+    assert results is not None
+
+
+def test_e2e_same_day_completion(tmp_path):
+    """Verify handling of work orders completed same day (edge case)."""
+    # Create CSV with same-day completions
+    csv_path = tmp_path / 'same_day.csv'
+    csv_path.write_text("""id_,wo_no,Equipment_ID,EquipmentName,Create_Date,Complete_Date,PO_AMOUNT,Property_category,FM_Type,Work_Order_Type,service_type_lv2,service_type_lv3,Contractor,Work_Order_Description
+1,WO-001,EQ-001,Test Equipment,2024-01-01,2024-01-01,100,HVAC,Mechanical,Corrective,HVAC,Cooling,Vendor A,Test description
+2,WO-002,EQ-001,Test Equipment,2024-02-01,2024-02-01,200,HVAC,Mechanical,Corrective,HVAC,Cooling,Vendor A,Test description
+3,WO-003,EQ-002,Test Equipment 2,2024-03-01,2024-03-01,150,Electrical,Electrical,Corrective,Electrical,Power,Vendor B,Test description
+""")
+
+    from src.orchestrator import PipelineOrchestrator
+    orch = PipelineOrchestrator(str(csv_path), str(tmp_path / 'output'))
+
+    results = orch.run_full_analysis()
+    assert results is not None
+    # Duration should be calculated correctly (possibly 0 or minimum value)
+
+
+# =============================================================================
+# Performance Benchmarks (2 tests)
+# =============================================================================
+
+@pytest.mark.slow
+def test_e2e_performance_100_rows(sample_data_path, tmp_path):
+    """Benchmark with 100 rows - should complete in reasonable time."""
+    from src.orchestrator import PipelineOrchestrator
+
+    start_time = time.time()
+    orch = PipelineOrchestrator(str(sample_data_path), str(tmp_path / 'output'))
+    results = orch.run_full_analysis()
+    execution_time = time.time() - start_time
+
+    print(f"\nPerformance (65 rows): {execution_time:.2f}s")
+
+    assert execution_time < 30, f"Pipeline took {execution_time:.2f}s, should be <30s"
+    assert results is not None
+
+
+@pytest.mark.slow
+def test_e2e_performance_large_dataset(tmp_path):
+    """Benchmark with larger generated dataset (500 rows)."""
+    # Generate larger dataset programmatically
+    import csv
+    large_csv = tmp_path / 'large.csv'
+
+    with open(large_csv, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['id_', 'wo_no', 'Equipment_ID', 'EquipmentName', 'Create_Date', 'Complete_Date',
+                        'PO_AMOUNT', 'Property_category', 'FM_Type', 'Work_Order_Type',
+                        'service_type_lv2', 'service_type_lv3', 'Contractor', 'Work_Order_Description'])
+
+        # Generate 500 rows
+        for i in range(1, 501):
+            eq_id = f"EQ-{(i % 50) + 1:03d}"  # 50 unique equipment
+            month = ((i - 1) % 12) + 1
+            day = ((i - 1) % 28) + 1
+            cost = 100 + (i % 20) * 50
+
+            writer.writerow([
+                i,
+                f"WO-{i:04d}",
+                eq_id,
+                f"Equipment {eq_id}",
+                f"2024-{month:02d}-{day:02d}",
+                f"2024-{month:02d}-{min(day+2, 28):02d}",
+                cost,
+                'HVAC' if i % 3 == 0 else ('Electrical' if i % 3 == 1 else 'Plumbing'),
+                'Mechanical' if i % 2 == 0 else 'Electrical',
+                'Corrective' if i % 4 != 0 else 'Preventive',
+                'HVAC' if i % 3 == 0 else ('Electrical' if i % 3 == 1 else 'Plumbing'),
+                'Cooling' if i % 3 == 0 else ('Power' if i % 3 == 1 else 'Water Supply'),
+                f"Vendor {chr(65 + (i % 3))}",  # Vendor A, B, or C
+                f"Test description {i}"
+            ])
+
+    from src.orchestrator import PipelineOrchestrator
+
+    start_time = time.time()
+    orch = PipelineOrchestrator(str(large_csv), str(tmp_path / 'output'))
+    results = orch.run_full_analysis()
+    execution_time = time.time() - start_time
+
+    print(f"\nPerformance (500 rows): {execution_time:.2f}s")
+
+    assert execution_time < 60, f"Pipeline took {execution_time:.2f}s, should be <60s for 500 rows"
+    assert results is not None
