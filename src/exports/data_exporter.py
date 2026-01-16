@@ -189,3 +189,193 @@ class DataExporter:
         # Export to CSV without index
         export_df.to_csv(output_path, index=False)
         logger.info(f"Exported {len(export_df)} failure patterns to {output_path}")
+
+    # JSON Export Methods
+
+    def export_equipment_rankings_json(self, df: pd.DataFrame, output_path: Union[str, Path]) -> None:
+        """
+        Export equipment ranking DataFrame to JSON.
+
+        Args:
+            df: DataFrame with equipment rankings (from equipment_ranker.rank_equipment)
+            output_path: Path to output JSON file
+
+        Creates pretty-printed JSON array of equipment objects sorted by priority_score.
+        Handles NaN values by converting to null.
+        """
+        # Handle empty DataFrame
+        if df is None or len(df) == 0:
+            logger.warning("Empty DataFrame provided for equipment rankings JSON export")
+            with open(output_path, 'w') as f:
+                json.dump([], f, indent=2)
+            return
+
+        # Create a copy for export
+        export_df = df.copy()
+
+        # Sort by priority_score descending
+        if 'priority_score' in export_df.columns:
+            export_df = export_df.sort_values('priority_score', ascending=False)
+
+        # Convert to list of dicts, replacing NaN with None
+        records = export_df.to_dict('records')
+
+        # Clean NaN/Infinity values
+        cleaned_records = self._clean_for_json(records)
+
+        # Write to JSON with pretty printing
+        with open(output_path, 'w') as f:
+            json.dump(cleaned_records, f, indent=2)
+
+        logger.info(f"Exported {len(cleaned_records)} equipment rankings to {output_path}")
+
+    def export_seasonal_patterns_json(self, patterns_dict: Dict[str, Any], output_path: Union[str, Path]) -> None:
+        """
+        Export seasonal analysis patterns to JSON.
+
+        Args:
+            patterns_dict: Dictionary with seasonal data containing monthly_costs,
+                quarterly_costs DataFrames and patterns list
+            output_path: Path to output JSON file
+
+        Creates JSON object with structure:
+        {
+            "monthly": [...],
+            "quarterly": [...],
+            "patterns": [...]
+        }
+        """
+        # Handle None or empty dict
+        if patterns_dict is None or len(patterns_dict) == 0:
+            logger.warning("Empty patterns_dict provided for seasonal patterns JSON export")
+            with open(output_path, 'w') as f:
+                json.dump({}, f, indent=2)
+            return
+
+        # Build output structure
+        output = {}
+
+        # Convert monthly costs DataFrame to list
+        if 'monthly_costs' in patterns_dict and patterns_dict['monthly_costs'] is not None:
+            monthly_df = patterns_dict['monthly_costs']
+            if len(monthly_df) > 0:
+                output['monthly'] = self._clean_for_json(monthly_df.to_dict('records'))
+
+        # Convert quarterly costs DataFrame to list
+        if 'quarterly_costs' in patterns_dict and patterns_dict['quarterly_costs'] is not None:
+            quarterly_df = patterns_dict['quarterly_costs']
+            if len(quarterly_df) > 0:
+                output['quarterly'] = self._clean_for_json(quarterly_df.to_dict('records'))
+
+        # Include patterns list if available
+        if 'patterns' in patterns_dict and patterns_dict['patterns'] is not None:
+            output['patterns'] = patterns_dict['patterns']
+
+        # Write to JSON with pretty printing
+        with open(output_path, 'w') as f:
+            json.dump(output, f, indent=2)
+
+        logger.info(f"Exported seasonal patterns to {output_path}")
+
+    def export_vendor_metrics_json(self, df: pd.DataFrame, output_path: Union[str, Path]) -> None:
+        """
+        Export vendor performance DataFrame to JSON.
+
+        Args:
+            df: DataFrame with vendor metrics (from vendor_analyzer.calculate_vendor_costs)
+            output_path: Path to output JSON file
+
+        Creates pretty-printed JSON array of vendor objects sorted by total_cost.
+        """
+        # Handle empty DataFrame
+        if df is None or len(df) == 0:
+            logger.warning("Empty DataFrame provided for vendor metrics JSON export")
+            with open(output_path, 'w') as f:
+                json.dump([], f, indent=2)
+            return
+
+        # Create a copy for export
+        export_df = df.copy()
+
+        # Sort by total_cost descending
+        if 'total_cost' in export_df.columns:
+            export_df = export_df.sort_values('total_cost', ascending=False)
+
+        # Convert to list of dicts
+        records = export_df.to_dict('records')
+
+        # Clean NaN/Infinity values
+        cleaned_records = self._clean_for_json(records)
+
+        # Write to JSON with pretty printing
+        with open(output_path, 'w') as f:
+            json.dump(cleaned_records, f, indent=2)
+
+        logger.info(f"Exported {len(cleaned_records)} vendor metrics to {output_path}")
+
+    def export_failure_patterns_json(self, patterns_list: List[Dict[str, Any]], output_path: Union[str, Path]) -> None:
+        """
+        Export failure patterns to JSON.
+
+        Args:
+            patterns_list: List of pattern dictionaries from failure_pattern_analyzer
+            output_path: Path to output JSON file
+
+        Creates pretty-printed JSON array preserving all fields from input.
+        """
+        # Handle None or empty list
+        if patterns_list is None or len(patterns_list) == 0:
+            logger.warning("Empty patterns_list provided for failure patterns JSON export")
+            with open(output_path, 'w') as f:
+                json.dump([], f, indent=2)
+            return
+
+        # Clean for JSON (handle any NaN or special values)
+        cleaned_list = self._clean_for_json(patterns_list)
+
+        # Write to JSON with pretty printing
+        with open(output_path, 'w') as f:
+            json.dump(cleaned_list, f, indent=2)
+
+        logger.info(f"Exported {len(cleaned_list)} failure patterns to {output_path}")
+
+    def _clean_for_json(self, data: Union[List[Dict], Dict]) -> Union[List[Dict], Dict]:
+        """
+        Clean data for JSON serialization.
+
+        Replaces NaN and Infinity values with None for valid JSON.
+        Converts pandas Timestamp to ISO format strings.
+
+        Args:
+            data: List of dicts or dict to clean
+
+        Returns:
+            Cleaned data structure safe for JSON serialization
+        """
+        import math
+        import numpy as np
+
+        if isinstance(data, list):
+            return [self._clean_for_json(item) for item in data]
+        elif isinstance(data, dict):
+            cleaned = {}
+            for key, value in data.items():
+                # Handle various special cases
+                if isinstance(value, (float, np.floating)):
+                    if math.isnan(value) or math.isinf(value):
+                        cleaned[key] = None
+                    else:
+                        cleaned[key] = float(value)
+                elif isinstance(value, (int, np.integer)):
+                    cleaned[key] = int(value)
+                elif isinstance(value, pd.Timestamp):
+                    cleaned[key] = value.isoformat()
+                elif pd.isna(value):
+                    cleaned[key] = None
+                elif isinstance(value, (list, dict)):
+                    cleaned[key] = self._clean_for_json(value)
+                else:
+                    cleaned[key] = value
+            return cleaned
+        else:
+            return data

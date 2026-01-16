@@ -266,3 +266,206 @@ def test_csv_no_index(sample_equipment_df, tmp_path):
     # First line should be headers, not starting with index
     assert not first_line.startswith('0,')
     assert first_line.startswith('Equipment_Name')
+
+
+# JSON Export Tests
+def test_export_equipment_rankings_json(sample_equipment_df, tmp_path):
+    """Test JSON export for equipment rankings."""
+    exporter = DataExporter()
+    output_file = tmp_path / "equipment.json"
+
+    exporter.export_equipment_rankings_json(sample_equipment_df, output_file)
+
+    # Verify file exists
+    assert output_file.exists()
+
+    # Read and parse JSON
+    with open(output_file, 'r') as f:
+        result = json.load(f)
+
+    # Verify structure
+    assert isinstance(result, list)
+    assert len(result) == 3
+
+    # Verify sorting by priority_score descending
+    assert result[0]['Equipment_Name'] == 'Chiller A'
+    assert result[0]['priority_score'] == 0.95
+
+
+def test_export_seasonal_patterns_json(sample_seasonal_dict, tmp_path):
+    """Test JSON export for seasonal patterns."""
+    exporter = DataExporter()
+    output_file = tmp_path / "seasonal.json"
+
+    exporter.export_seasonal_patterns_json(sample_seasonal_dict, output_file)
+
+    # Verify file exists
+    assert output_file.exists()
+
+    # Read and parse JSON
+    with open(output_file, 'r') as f:
+        result = json.load(f)
+
+    # Verify structure
+    assert isinstance(result, dict)
+    assert 'monthly' in result
+    assert 'quarterly' in result
+    assert 'patterns' in result
+    assert len(result['monthly']) == 3
+    assert result['monthly'][0]['period'] == 'January'
+
+
+def test_export_vendor_metrics_json(sample_vendor_df, tmp_path):
+    """Test JSON export for vendor metrics."""
+    exporter = DataExporter()
+    output_file = tmp_path / "vendors.json"
+
+    exporter.export_vendor_metrics_json(sample_vendor_df, output_file)
+
+    # Verify file exists
+    assert output_file.exists()
+
+    # Read and parse JSON
+    with open(output_file, 'r') as f:
+        result = json.load(f)
+
+    # Verify structure
+    assert isinstance(result, list)
+    assert len(result) == 3
+
+    # Verify sorting by total_cost descending
+    assert result[0]['contractor'] == 'ABC Contractors'
+    assert result[0]['total_cost'] == 150000
+
+
+def test_export_failure_patterns_json(sample_patterns_list, tmp_path):
+    """Test JSON export for failure patterns."""
+    exporter = DataExporter()
+    output_file = tmp_path / "patterns.json"
+
+    exporter.export_failure_patterns_json(sample_patterns_list, output_file)
+
+    # Verify file exists
+    assert output_file.exists()
+
+    # Read and parse JSON
+    with open(output_file, 'r') as f:
+        result = json.load(f)
+
+    # Verify structure
+    assert isinstance(result, list)
+    assert len(result) == 2
+    assert result[0]['pattern'] == 'water leak'
+    assert result[0]['occurrences'] == 15
+
+
+def test_json_empty_data(tmp_path):
+    """Test JSON export handles empty data gracefully."""
+    exporter = DataExporter()
+    output_file = tmp_path / "empty.json"
+
+    empty_df = pd.DataFrame()
+    exporter.export_equipment_rankings_json(empty_df, output_file)
+
+    # Should create valid JSON file
+    assert output_file.exists()
+    with open(output_file, 'r') as f:
+        result = json.load(f)
+
+    assert isinstance(result, list)
+    assert len(result) == 0
+
+
+def test_json_nan_values(tmp_path):
+    """Test JSON export converts NaN to null."""
+    exporter = DataExporter()
+    output_file = tmp_path / "nan_test.json"
+
+    # DataFrame with NaN values
+    df_with_nan = pd.DataFrame({
+        'Equipment_Name': ['Test Equipment'],
+        'avg_cost': [float('nan')],
+        'priority_score': [0.85]
+    })
+
+    exporter.export_equipment_rankings_json(df_with_nan, output_file)
+
+    # Read and verify NaN converted to null
+    with open(output_file, 'r') as f:
+        result = json.load(f)
+
+    assert result[0]['avg_cost'] is None  # NaN should be None (null in JSON)
+    assert result[0]['priority_score'] == 0.85
+
+
+def test_json_date_serialization(tmp_path):
+    """Test JSON export serializes dates as ISO strings."""
+    exporter = DataExporter()
+    output_file = tmp_path / "dates.json"
+
+    # DataFrame with Timestamp
+    df_with_date = pd.DataFrame({
+        'Equipment_Name': ['Test'],
+        'last_service': [pd.Timestamp('2024-01-15')],
+        'priority_score': [0.9]
+    })
+
+    exporter.export_equipment_rankings_json(df_with_date, output_file)
+
+    # Read and verify date as ISO string
+    with open(output_file, 'r') as f:
+        result = json.load(f)
+
+    assert result[0]['last_service'] == '2024-01-15T00:00:00'
+
+
+def test_json_pretty_print(sample_equipment_df, tmp_path):
+    """Test JSON export uses indent=2 for pretty printing."""
+    exporter = DataExporter()
+    output_file = tmp_path / "pretty.json"
+
+    exporter.export_equipment_rankings_json(sample_equipment_df, output_file)
+
+    # Read raw file content
+    with open(output_file, 'r') as f:
+        content = f.read()
+
+    # Verify indentation (should have newlines and spaces)
+    assert '\n' in content
+    assert '  ' in content  # Two-space indentation
+
+
+def test_json_valid_parse(sample_equipment_df, tmp_path):
+    """Test JSON export produces valid parseable JSON."""
+    exporter = DataExporter()
+    output_file = tmp_path / "valid.json"
+
+    exporter.export_equipment_rankings_json(sample_equipment_df, output_file)
+
+    # Should not raise exception when parsing
+    with open(output_file, 'r') as f:
+        result = json.load(f)
+
+    # Verify it's valid
+    assert result is not None
+    assert isinstance(result, list)
+
+
+def test_json_roundtrip(sample_equipment_df, tmp_path):
+    """Test JSON export and re-import preserves data integrity."""
+    exporter = DataExporter()
+    output_file = tmp_path / "roundtrip.json"
+
+    exporter.export_equipment_rankings_json(sample_equipment_df, output_file)
+
+    # Read back
+    with open(output_file, 'r') as f:
+        result = json.load(f)
+
+    # Convert back to DataFrame
+    result_df = pd.DataFrame(result)
+
+    # Compare data
+    assert len(result_df) == len(sample_equipment_df)
+    assert list(result_df['Equipment_Name']) == list(sample_equipment_df['Equipment_Name'])
+    assert abs(result_df.iloc[0]['priority_score'] - 0.95) < 0.001
