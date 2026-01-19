@@ -6,13 +6,14 @@ This module provides the ChartGenerator class for creating static charts
 proper styling, labels, and legends suitable for stakeholder presentations.
 """
 
+import calendar
 import pandas as pd
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from pathlib import Path
-from typing import Union, Literal, Dict, Optional
+from typing import Union, Literal, Dict, Optional, List
 import logging
 
 logger = logging.getLogger(__name__)
@@ -58,13 +59,14 @@ class ChartGenerator:
         'other': '#757575',       # Gray
     }
 
-    def __init__(self, style: str = 'default', dpi: int = 300):
+    def __init__(self, style: str = 'default', dpi: int = 300, font_family: Optional[List[str]] = None):
         """
         Initialize ChartGenerator with style and quality settings.
 
         Args:
             style: Matplotlib style to use (default: 'default')
             dpi: Dots per inch for output quality (default: 300 for print quality)
+            font_family: Optional list of font families for text rendering
         """
         self.style = style
         self.dpi = dpi
@@ -72,6 +74,18 @@ class ChartGenerator:
         # Set matplotlib style
         if style != 'default':
             plt.style.use(style)
+
+        # Prefer fonts that support CJK glyphs to avoid missing character warnings
+        self.font_family = font_family or [
+            'Microsoft YaHei',
+            'SimHei',
+            'Noto Sans CJK SC',
+            'Arial Unicode MS',
+            'DejaVu Sans'
+        ]
+        plt.rcParams['font.family'] = 'sans-serif'
+        plt.rcParams['font.sans-serif'] = self.font_family
+        plt.rcParams['axes.unicode_minus'] = False
 
     def create_equipment_ranking_chart(
         self,
@@ -280,6 +294,116 @@ class ChartGenerator:
         plt.close()
 
         logger.info(f"Seasonal trend chart saved to {output_path}")
+
+    def create_year_over_year_comparison_chart(
+        self,
+        df: pd.DataFrame,
+        output_path: Union[str, Path],
+        metric: Literal['total_cost', 'work_order_count'],
+        year_a: int,
+        year_b: int,
+        months: Optional[list] = None,
+        format: Literal['png', 'svg'] = 'png'
+    ) -> None:
+        """
+        Create a year-over-year comparison chart for monthly metrics.
+
+        Args:
+            df: DataFrame with columns: year, month, period, total_cost, work_order_count
+            output_path: Path to save the chart
+            metric: Metric to plot ('total_cost' or 'work_order_count')
+            year_a: First year to compare
+            year_b: Second year to compare
+            months: Optional list of month numbers to include (1-12)
+            format: Output format - 'png' or 'svg' (default: 'png')
+        """
+        if df is None or len(df) == 0:
+            logger.warning("Empty monthly-by-year DataFrame for year-over-year chart")
+            self._create_empty_chart(output_path, "No monthly data available", format)
+            return
+
+        required_cols = ['year', 'month', metric]
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        if missing_cols:
+            logger.error(f"Missing required columns: {missing_cols}")
+            self._create_empty_chart(output_path, f"Missing columns: {', '.join(missing_cols)}", format)
+            return
+
+        if months is None:
+            months = list(range(1, 13))
+        else:
+            months = sorted({m for m in months if 1 <= m <= 12})
+            if not months:
+                months = list(range(1, 13))
+
+        month_labels = [calendar.month_name[m] for m in months]
+
+        def _series_for_year(year: int) -> pd.Series:
+            year_df = df[(df['year'] == year) & (df['month'].isin(months))].copy()
+            if year_df.empty:
+                return pd.Series([float('nan')] * len(months), index=months)
+            grouped = year_df.groupby('month', as_index=True)[metric].sum()
+            return grouped.reindex(months)
+
+        series_a = _series_for_year(year_a)
+        series_b = _series_for_year(year_b)
+
+        if series_a.isna().all() and series_b.isna().all():
+            logger.warning("No data available for year-over-year comparison chart")
+            self._create_empty_chart(output_path, "No year-over-year data available", format)
+            return
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        if not series_a.isna().all():
+            ax.plot(
+                month_labels,
+                series_a.values,
+                color=self.COLORS['primary'],
+                linewidth=2,
+                marker='o',
+                label=str(year_a)
+            )
+        if not series_b.isna().all():
+            ax.plot(
+                month_labels,
+                series_b.values,
+                color=self.COLORS['secondary'],
+                linewidth=2,
+                marker='s',
+                label=str(year_b)
+            )
+
+        month_range = f"{month_labels[0]}-{month_labels[-1]}" if month_labels else "Months"
+        if metric == 'total_cost':
+            ax.set_ylabel('Total Cost ($)', fontsize=11, fontweight='bold')
+            ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
+            title_metric = "Total Cost"
+        else:
+            ax.set_ylabel('Work Order Count', fontsize=11, fontweight='bold')
+            ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:,.0f}'))
+            title_metric = "Work Order Count"
+
+        ax.set_xlabel('Month', fontsize=11, fontweight='bold')
+        ax.set_title(
+            f"{title_metric} Comparison ({month_range} {year_a} vs {year_b})",
+            fontsize=14,
+            fontweight='bold',
+            pad=20
+        )
+
+        ax.grid(axis='y', alpha=0.3, linestyle='--')
+        ax.set_axisbelow(True)
+        ax.legend(loc='upper right')
+
+        plt.tight_layout()
+
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(output_path, format=format, dpi=self.dpi, bbox_inches='tight')
+        plt.close()
+
+        logger.info(f"Year-over-year comparison chart saved to {output_path}")
 
     def create_vendor_performance_chart(
         self,

@@ -281,7 +281,8 @@ class PipelineOrchestrator:
             df: Cleaned work order DataFrame
 
         Returns:
-            Dict with monthly_costs, quarterly_costs, patterns, and pattern_count
+            Dict with monthly_costs, quarterly_costs, monthly_costs_by_year,
+            patterns, and pattern_count
         """
         analyzer = SeasonalAnalyzer()
 
@@ -289,6 +290,7 @@ class PipelineOrchestrator:
             # Calculate monthly and quarterly costs
             monthly_costs = analyzer.calculate_monthly_costs(df)
             quarterly_costs = analyzer.calculate_quarterly_costs(df)
+            monthly_costs_by_year = analyzer.calculate_monthly_costs_by_year(df)
 
             # Handle edge case: no data
             if len(monthly_costs) == 0 or len(quarterly_costs) == 0:
@@ -296,6 +298,7 @@ class PipelineOrchestrator:
                 return {
                     'monthly_costs': pd.DataFrame(),
                     'quarterly_costs': pd.DataFrame(),
+                    'monthly_costs_by_year': monthly_costs_by_year,
                     'patterns': [],
                     'pattern_count': 0
                 }
@@ -309,6 +312,7 @@ class PipelineOrchestrator:
             return {
                 'monthly_costs': monthly_costs,
                 'quarterly_costs': quarterly_with_variance,
+                'monthly_costs_by_year': monthly_costs_by_year,
                 'patterns': patterns,
                 'pattern_count': len(patterns)
             }
@@ -318,6 +322,7 @@ class PipelineOrchestrator:
             return {
                 'monthly_costs': pd.DataFrame(),
                 'quarterly_costs': pd.DataFrame(),
+                'monthly_costs_by_year': pd.DataFrame(),
                 'patterns': [],
                 'pattern_count': 0
             }
@@ -579,6 +584,7 @@ class PipelineOrchestrator:
 
         Creates:
         - Static charts: equipment_ranking.png, seasonal_costs.png,
+          seasonal_costs_2024_vs_2025.png, seasonal_work_orders_2024_vs_2025.png,
           vendor_costs.png, vendor_costs_scaled.png, failure_patterns.png
         - Interactive dashboard: dashboard.html with all 4 chart types
 
@@ -607,7 +613,7 @@ class PipelineOrchestrator:
             dashboard_gen = DashboardGenerator()
 
             # Generate static charts
-            logger.info("\n[1/7] Generating equipment outliers chart...")
+            logger.info("\n[1/9] Generating equipment outliers chart...")
             equipment_chart = self.output_dir / 'visualizations' / 'equipment_ranking.png'
             chart_gen.create_equipment_ranking_chart(
                 analysis_results['equipment_df'],
@@ -618,7 +624,7 @@ class PipelineOrchestrator:
             chart_files.append(str(equipment_chart))
             logger.info(f"✓ Equipment outliers chart saved: {equipment_chart}")
 
-            logger.info("\n[2/7] Generating all equipment ranking chart...")
+            logger.info("\n[2/9] Generating all equipment ranking chart...")
             all_equipment_chart = self.output_dir / 'visualizations' / 'all_equipment_ranking.png'
             chart_gen.create_equipment_ranking_chart(
                 analysis_results['all_equipment_df'],
@@ -629,7 +635,7 @@ class PipelineOrchestrator:
             chart_files.append(str(all_equipment_chart))
             logger.info(f"✓ All equipment chart saved: {all_equipment_chart}")
 
-            logger.info("\n[3/7] Generating seasonal trend chart...")
+            logger.info("\n[3/9] Generating seasonal trend chart...")
             seasonal_chart = self.output_dir / 'visualizations' / 'seasonal_costs.png'
             seasonal_data = {
                 'monthly': analysis_results['seasonal_dict'].get('monthly_costs', pd.DataFrame())
@@ -642,7 +648,36 @@ class PipelineOrchestrator:
             chart_files.append(str(seasonal_chart))
             logger.info(f"✓ Seasonal chart saved: {seasonal_chart}")
 
-            logger.info("\n[4/7] Generating vendor performance chart...")
+            logger.info("\n[4/9] Generating year-over-year total cost chart...")
+            seasonal_by_year = analysis_results['seasonal_dict'].get('monthly_costs_by_year', pd.DataFrame())
+            yoy_cost_chart = self.output_dir / 'visualizations' / 'seasonal_costs_2024_vs_2025.png'
+            chart_gen.create_year_over_year_comparison_chart(
+                seasonal_by_year,
+                yoy_cost_chart,
+                metric='total_cost',
+                year_a=2024,
+                year_b=2025,
+                months=[1, 2, 3, 4, 5],
+                format='png'
+            )
+            chart_files.append(str(yoy_cost_chart))
+            logger.info(f"Year-over-year total cost chart saved: {yoy_cost_chart}")
+
+            logger.info("\n[5/9] Generating year-over-year work order count chart...")
+            yoy_count_chart = self.output_dir / 'visualizations' / 'seasonal_work_orders_2024_vs_2025.png'
+            chart_gen.create_year_over_year_comparison_chart(
+                seasonal_by_year,
+                yoy_count_chart,
+                metric='work_order_count',
+                year_a=2024,
+                year_b=2025,
+                months=[1, 2, 3, 4, 5],
+                format='png'
+            )
+            chart_files.append(str(yoy_count_chart))
+            logger.info(f"Year-over-year work order count chart saved: {yoy_count_chart}")
+
+            logger.info("\n[6/9] Generating vendor performance chart...")
             vendor_chart = self.output_dir / 'visualizations' / 'vendor_costs.png'
             vendor_df_for_chart = analysis_results.get(
                 'vendor_df_no_equipment',
@@ -661,7 +696,7 @@ class PipelineOrchestrator:
             chart_files.append(str(vendor_chart))
             logger.info(f"✓ Vendor chart saved: {vendor_chart}")
 
-            logger.info("\n[5/7] Generating vendor scaled cost chart...")
+            logger.info("\n[7/9] Generating vendor scaled cost chart...")
             vendor_scaled_chart = self.output_dir / 'visualizations' / 'vendor_costs_scaled.png'
             chart_gen.create_vendor_costs_scaled_chart(
                 analysis_results['vendor_df'],
@@ -672,7 +707,7 @@ class PipelineOrchestrator:
             chart_files.append(str(vendor_scaled_chart))
             logger.info(f"Vendor scaled chart saved: {vendor_scaled_chart}")
 
-            logger.info("\n[6/7] Generating failure pattern chart...")
+            logger.info("\n[8/9] Generating failure pattern chart...")
             failure_chart = self.output_dir / 'visualizations' / 'failure_patterns.png'
             # Convert patterns list to DataFrame if needed
             if analysis_results['patterns_list']:
@@ -689,7 +724,7 @@ class PipelineOrchestrator:
             logger.info(f"✓ Failure patterns chart saved: {failure_chart}")
 
             # Generate interactive dashboard
-            logger.info("\n[7/7] Generating interactive dashboard...")
+            logger.info("\n[9/9] Generating interactive dashboard...")
             dashboard_path = self.output_dir / 'visualizations' / 'dashboard.html'
             dashboard_gen.create_dashboard(
                 equipment_df=analysis_results['equipment_df'],

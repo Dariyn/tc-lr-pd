@@ -5,7 +5,11 @@
       "Bash(git commit:*)",
       "WebSearch",
       "Bash(python:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(xargs -I {} sh -c 'echo \"\"=== {} ===\"\" && head -50 {}')",
+      "Bash(powershell -Command \"Get-Content ''c:\\\\Users\\\\choyd\\\\thinkcol\\\\linkreit-pd\\\\input\\\\adhoc_wo.csv'' -TotalCount 5\")",
+      "Bash(powershell -Command \"\\(Get-Content ''c:\\\\Users\\\\choyd\\\\thinkcol\\\\linkreit-pd\\\\input\\\\adhoc_wo.csv'' | Select-String -Pattern ''無設備|无设备|No Equipment'' -AllMatches\\).Count\")",
+      "Bash(powershell -Command:*)"
     ]
   }
 }

@@ -110,6 +110,58 @@ class SeasonalAnalyzer:
 
         return monthly
 
+    def calculate_monthly_costs_by_year(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Aggregate work order costs by year and month.
+
+        Groups work orders by creation year and month (when repair was requested)
+        and calculates total costs, average costs, and work order counts.
+
+        Args:
+            df: DataFrame with 'Create_Date' (or 'Complete_Date') and 'PO_AMOUNT' columns
+
+        Returns:
+            DataFrame with columns:
+                - year: Year number (e.g., 2024)
+                - month: Month number (1-12)
+                - period: Month name (e.g., 'January')
+                - total_cost: Sum of PO_AMOUNT for the month
+                - avg_cost: Average PO_AMOUNT for the month
+                - work_order_count: Number of work orders in the month
+        """
+        if df.empty:
+            return pd.DataFrame(columns=[
+                'year', 'month', 'period', 'total_cost', 'avg_cost', 'work_order_count'
+            ])
+
+        date_col = self._get_date_column(df)
+        if date_col is None:
+            return pd.DataFrame(columns=[
+                'year', 'month', 'period', 'total_cost', 'avg_cost', 'work_order_count'
+            ])
+
+        valid_df = df[df[date_col].notna() & df['PO_AMOUNT'].notna()].copy()
+        if valid_df.empty:
+            return pd.DataFrame(columns=[
+                'year', 'month', 'period', 'total_cost', 'avg_cost', 'work_order_count'
+            ])
+
+        valid_df['year'] = valid_df[date_col].dt.year
+        valid_df['month'] = valid_df[date_col].dt.month
+        valid_df['month_name'] = valid_df[date_col].dt.month_name()
+
+        monthly = valid_df.groupby(['year', 'month', 'month_name']).agg(
+            total_cost=('PO_AMOUNT', 'sum'),
+            avg_cost=('PO_AMOUNT', 'mean'),
+            work_order_count=('PO_AMOUNT', 'count')
+        ).reset_index()
+
+        monthly = monthly.sort_values(['year', 'month'])
+        monthly = monthly.rename(columns={'month_name': 'period'})
+        monthly = monthly[['year', 'month', 'period', 'total_cost', 'avg_cost', 'work_order_count']]
+
+        return monthly
+
     def calculate_quarterly_costs(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Aggregate work order costs by quarter.

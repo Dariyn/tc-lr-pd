@@ -250,6 +250,8 @@ Output Structure:
     visualizations/
       - equipment_ranking.png
       - seasonal_costs.png
+      - seasonal_costs_2024_vs_2025.png
+      - seasonal_work_orders_2024_vs_2025.png
       - vendor_costs.png
       - failure_patterns.png
       - dashboard.html
